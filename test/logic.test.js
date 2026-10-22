@@ -186,6 +186,19 @@ test("check-in only counts signups for tonight's date", async () => {
   assert.equal(s.marks[0].line, 3);
 });
 
+test("a reworded event question: answers under either header count", async () => {
+  const NEW_COL = "Which Event are you signing up for?";
+  const both = { ...dated, colEvent: `${NEW_COL}|${EVENT_COL}` };
+  const s = stubSheet([
+    { Name: "Old", Discord: "oldform", [EVENT_COL]: md(TODAY) },
+    { Name: "New", Discord: "newform", [NEW_COL]: `TNN ${md(TODAY)}` },
+    { Name: "Elsewhere", Discord: "other", [NEW_COL]: "1/1/2099" }
+  ], ["Name", "Discord", EVENT_COL, NEW_COL]);
+  assert.match(await checkIn(s, both, { id: "1", username: "oldform" }), /checked in for tonight as \*\*Old\*\*/);
+  assert.match(await checkIn(s, both, { id: "2", username: "newform" }), /checked in for tonight as \*\*New\*\*/);
+  assert.match(await checkIn(s, both, { id: "3", username: "other" }), /signed up, but not for/);
+});
+
 test("signed up for another date is told so, with the form link", async () => {
   const s = stubSheet([{ Name: "Ari", Discord: "arimain", [EVENT_COL]: "1/1/2099" }], ["Name", "Discord", EVENT_COL]);
   const out = await checkIn(s, dated, { id: "1", username: "arimain" });

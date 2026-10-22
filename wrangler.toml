@@ -14,8 +14,8 @@ TIMEZONE = "America/Los_Angeles"
 # The signup form's response tab. One form serves every event.
 SIGNUP_TAB = "TNN Signups"
 # The form question where people pick their event date. Signups are matched to the
-# event by the date in this answer.
-COL_EVENT = "Which event(date) are you signing up for?"
+# event by the date in this answer. Several headers, split by |, are all checked.
+COL_EVENT = "Which Event are you signing up for?|Which event(date) are you signing up for?"
 # What the panel's Sign up button and the bot's replies link to.
 SIGNUP_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeCkISw6Yq8_w5BTWjmZblm2OuOOwmpe2ZOk0k6xAop_omvRQ/viewform"
 # What the panel's Feedback button opens.

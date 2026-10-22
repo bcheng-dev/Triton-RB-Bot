@@ -174,9 +174,14 @@ export function applyEvents(cfg, events, now = new Date()) {
 /** One form serves every event, so each signup says which date it is for. These are
     the rows for `date`. A tab without that column (an older per-event form) counts
     every row, so those tabs keep working. */
+/** COL_EVENT can name several columns, split by |, for a form whose event question
+    was reworded: old answers sit under the old header, new ones under the new. */
+export const eventCols = (cfg) => String(cfg.colEvent || "").split("|").map((c) => c.trim()).filter(Boolean);
+
 export function rowsFor(header, rows, cfg, date, now = new Date()) {
-  if (!cfg.colEvent || !header.includes(cfg.colEvent)) return { rows, byDate: false };
-  return { rows: rows.filter((r) => datesIn(r[cfg.colEvent], cfg.tz, now).has(date)), byDate: true };
+  const cols = eventCols(cfg).filter((c) => header.includes(c));
+  if (!cols.length) return { rows, byDate: false };
+  return { rows: rows.filter((r) => cols.some((c) => datesIn(r[c], cfg.tz, now).has(date))), byDate: true };
 }
 
 const signUpHint = (cfg) => (cfg.formUrl ? ` Sign up here: <${cfg.formUrl}>` : "");
@@ -438,7 +443,7 @@ export async function addEvent(sheet, cfg, { date, start, end, tab, location, by
     `Check-in opens at **${desc.opens}** and closes when the event ends.\n` +
     (byDate
       ? `${signups} signed up for this date so far.`
-      : `Heads up: the **${useTab}** tab has no **${cfg.colEvent}** column, so every signup there counts for this event.`) +
+      : `Heads up: the **${useTab}** tab has no ${eventCols(cfg).map((c) => `**${c}**`).join(" or ")} column, so every signup there counts for this event.`) +
     (x.end <= schedule(cfg, now).t ? `\n\nHeads up: that event is already over.` : "");
 }
 

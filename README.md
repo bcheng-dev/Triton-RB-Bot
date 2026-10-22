@@ -61,6 +61,8 @@ Integrations**, so officers can see them.
   signing up for?** (`COL_EVENT`) says which date each signup is for, and check-in
   only counts signups for the event that is open. The bot reads `10/23`,
   `10/23/2026`, `2026-10-23`, `Thursday, Oct 23` and several dates in one answer.
+  If the question gets reworded, list both headers in `COL_EVENT` split by `|`;
+  a signup counts if either answer has the date.
 - Somebody signed up for a different date is told so and given the form link.
   Organizers can still check them in with `/checkin-for`; the reply notes it.
 - Members can check in from **30 minutes before the start until the end time**
@@ -232,7 +234,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 74 tests, no network needed
+npm test          # 75 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 
