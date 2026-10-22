@@ -1,0 +1,40 @@
+name = "rb-checkin"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+# Ed25519 in WebCrypto and modern fetch semantics.
+compatibility_flags = ["nodejs_compat"]
+
+# Everything secret goes in with `wrangler secret put`, never here:
+#   DISCORD_PUBLIC_KEY, DISCORD_APP_ID, DISCORD_BOT_TOKEN,
+#   SHEET_ID, GOOGLE_CREDENTIALS
+#
+# Non-secret settings can live here. Match them to your sheet.
+[vars]
+TIMEZONE = "America/Los_Angeles"
+# The signup form's response tab. One form serves every event.
+SIGNUP_TAB = "TNN 10/23"
+# The form question where people pick their event date. Signups are matched to the
+# event by the date in this answer.
+COL_EVENT = "Which event(date) are you signing up for?"
+# What the panel's Sign up button and the bot's replies link to.
+SIGNUP_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeCkISw6Yq8_w5BTWjmZblm2OuOOwmpe2ZOk0k6xAop_omvRQ/viewform"
+# What the panel's Feedback button opens.
+FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSezV251wrUoGkgA849IctE0xLvoyfxPUApRPx1vWSe1jjKwdQ/viewform"
+# What the panel's Rankings button opens.
+RANKINGS_URL = "https://bcheng-dev.github.io/TNN-Standings/"
+# The bot's own log. Not "Attendance": that name is taken by an older form's tab.
+ATTENDANCE_TAB = "Check-in Log"
+# The schedule /event-add writes to, one row per event.
+EVENTS_TAB = "Events"
+CHECKIN_OPENS_MINUTES = "30"
+# Header text as the sheet has it, minus leading/trailing spaces (the bot trims them).
+COL_NAME = "What is your name"
+COL_DISCORD = "What is your Discord username?"
+COL_VERIFIED_ID = "Discord ID (verified)"
+COL_CHECKED = "Checked in"
+# Who may use organizer commands: the Officer role's ID. That role and every role
+# ranked above it count; administrators and the owner always do. Comma separate one
+# ID per server if the bot is in several. Empty means Manage Events or Manage Server.
+ORGANIZER_ROLE_IDS = ""
+# Roles that never count toward that, wherever they sit, such as Alumni Officer.
+ORGANIZER_IGNORE_ROLE_IDS = ""

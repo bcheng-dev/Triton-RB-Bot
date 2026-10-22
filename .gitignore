@@ -1,0 +1,7 @@
+node_modules/
+.dev.vars
+.wrangler/
+service-account.json
+.env
+# Google service account keys, whatever they are named
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
