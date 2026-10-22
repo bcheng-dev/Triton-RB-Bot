@@ -100,7 +100,7 @@ test("event-add schedules an event on the one signup form", async () => {
   const cfg = formCfg();
   const s = scheduleSheet(cfg);
   const out = await addEvent(s, cfg, { date: "10/23", start: "6:30pm", end: "9:30pm", by: "brian" }, la(19, 12));
-  assert.deepEqual(s.writes, [{ line: null, row: ["2026-10-23", "18:30", "21:30", "Signups", "", "brian", ""] }]);
+  assert.deepEqual(s.writes, [{ line: null, row: ["2026-10-23", "18:30", "21:30", "", "", "brian", ""] }]);
   assert.match(out, /Scheduled \*\*Fri, Oct 23, 6:30 PM to 9:30 PM\*\*/);
   assert.match(out, /opens at \*\*6:00 PM\*\*/);
   assert.match(out, /2 signed up for this date so far/);

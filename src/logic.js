@@ -427,7 +427,9 @@ export async function addEvent(sheet, cfg, { date, start, end, tab, location, by
   // Left blank, an edit keeps the location it had; "none" clears it.
   const typed = String(location ?? "").trim();
   const loc = /^(none|clear|-)$/i.test(typed) ? "" : typed || existing?.location || "";
-  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), useTab, "", by || "", loc]);
+  // The usual tab is stored blank, so renaming SIGNUP_TAB later carries every event along.
+  const savedTab = useTab === cfg.defaultTab ? "" : useTab;
+  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), savedTab, "", by || "", loc]);
 
   const x = timed({ date: d, start: s, end: e }, cfg);
   const desc = describe(x);

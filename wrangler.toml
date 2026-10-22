@@ -12,7 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 TIMEZONE = "America/Los_Angeles"
 # The signup form's response tab. One form serves every event.
-SIGNUP_TAB = "TNN 10/23"
+SIGNUP_TAB = "TNN Signups"
 # The form question where people pick their event date. Signups are matched to the
 # event by the date in this answer.
 COL_EVENT = "Which event(date) are you signing up for?"
@@ -28,7 +28,7 @@ ATTENDANCE_TAB = "Check-in Log"
 EVENTS_TAB = "Events"
 CHECKIN_OPENS_MINUTES = "30"
 # Header text as the sheet has it, minus leading/trailing spaces (the bot trims them).
-COL_NAME = "What is your name"
+COL_NAME = "What is your full name?"
 COL_DISCORD = "What is your Discord username?"
 COL_VERIFIED_ID = "Discord ID (verified)"
 COL_CHECKED = "Checked in"

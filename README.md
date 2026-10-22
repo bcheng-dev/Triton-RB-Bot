@@ -75,6 +75,7 @@ Integrations**, so officers can see them.
 
 The schedule is stored in an **Events** tab on the sheet, one row per event:
 `Date · Start · End · Signup tab · (unused) · Added by · Location`. Editing it by hand works too.
+A blank **Signup tab** means `SIGNUP_TAB`, so renaming the form tab only needs that setting changed.
 
 Every check-in and undo is appended to the **Check-in Log** tab (`ATTENDANCE_TAB`).
 `/attendance` reads that log, so one signup can cover several dates. `/uncheckin`
