@@ -49,8 +49,13 @@ Integrations**, so officers can see them.
 ## The schedule, and one form for every event
 
 ```
-/event-add date:10/23 start:6:30pm end:9:30pm
+/event-add date:10/23 start:6:30pm end:9:30pm location:Price Center East, UCSD
 ```
+
+- `location:` is optional. Type an address and the bot links it to a Google Maps
+  search, or paste a Google Maps share link and it is used as is. It shows in
+  `/events`, `/mysignups` and the "check-in is not open yet" reply. Editing an event
+  without `location:` keeps the one it had; `location:none` removes it.
 
 - One signup form serves every event. Its question **Which event(date) are you
   signing up for?** (`COL_EVENT`) says which date each signup is for, and check-in
@@ -69,7 +74,7 @@ Integrations**, so officers can see them.
   hours, else the next one.
 
 The schedule is stored in an **Events** tab on the sheet, one row per event:
-`Date · Start · End · Signup tab · (unused) · Added by`. Editing it by hand works too.
+`Date · Start · End · Signup tab · (unused) · Added by · Location`. Editing it by hand works too.
 
 Every check-in and undo is appended to the **Check-in Log** tab (`ATTENDANCE_TAB`).
 `/attendance` reads that log, so one signup can cover several dates. `/uncheckin`
@@ -226,7 +231,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 72 tests, no network needed
+npm test          # 74 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

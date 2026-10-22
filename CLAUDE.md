@@ -18,7 +18,7 @@ Brian is deploying this for the first time. The work splits in two:
   from the form response tab, which is usually the whole question sentence.
 - `npx wrangler login`, `npx wrangler deploy`, `npx wrangler tail`
 - Running `node register.js` with his values
-- Running `npm test` (72 tests, no network needed) to confirm nothing is broken
+- Running `npm test` (74 tests, no network needed) to confirm nothing is broken
 - Reading errors and fixing them
 
 **He has to do these himself** (browser, accounts):
@@ -54,7 +54,7 @@ ping the moment he saves that field, and rejects the URL if nothing answers.
 - `src/match.js` — matching a Discord member to a signup row
 - `src/commands.js` - the slash command list, shared by register.js and /panel
 - `register.js` - first-time command registration from Node; afterwards /panel does it
-- `test/` — 72 tests over matching, logic, the schedule, crypto, sheet writes and secret cleanup
+- `test/` — 74 tests over matching, logic, the schedule, crypto, sheet writes and secret cleanup
 
 ## House rules
 

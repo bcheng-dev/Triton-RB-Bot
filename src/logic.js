@@ -108,6 +108,7 @@ export function parseEvents(rows, cfg, now = new Date()) {
     start: parseTime(r[1]),
     end: parseTime(r[2]),
     tab: String(r[3] ?? "").trim(),
+    location: String(r[6] ?? "").trim(),
     _line: r._line
   })).filter((e) => e.date && e.start !== null && e.end !== null);
 }
@@ -138,6 +139,17 @@ export function currentEvent(cfg, now = new Date()) {
   if (s.last && s.t - s.last.end < 12 * 3600000) return s.last;
   return s.next || s.last;
 }
+
+/** A Google Maps link pasted as is, or an address turned into a Maps search, as a
+    Discord link that does not unfurl into a big preview. Empty string when unset. */
+export function locationLink(loc) {
+  const s = String(loc ?? "").replace(/[<>]/g, "").trim();
+  if (!s) return "";
+  if (/^https?:\/\/\S+$/i.test(s)) return `📍 [Map](<${s}>)`;
+  const label = s.replace(/([\[\]*_~`|\\])/g, "\\$1");
+  return `📍 [${label}](<https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s)}>)`;
+}
+const where = (x) => (x.ev.location ? ` · ${locationLink(x.ev.location)}` : "");
 
 export function describe(x) {
   const day = fmtDay(x.start);
@@ -176,7 +188,8 @@ export async function checkIn(sheet, cfg, who, now = new Date()) {
   if (!s.active) {
     if (s.next) {
       const d = describe(s.next);
-      return `Check-in is not open right now. The next event is **${d.when}**, and check-in opens at **${d.opens}**.`;
+      return `Check-in is not open right now. The next event is **${d.when}**, and check-in opens at **${d.opens}**.` +
+        (s.next.ev.location ? `\n${locationLink(s.next.ev.location)}` : "");
     }
     return "Check-in is not open: no upcoming events are scheduled. An organizer can add one with `/event-add`.";
   }
@@ -267,7 +280,7 @@ export async function mySignups(sheet, cfg, who, now = new Date()) {
     const { rows } = rowsFor(header, all, cfg, x.ev.date, now);
     const signed = findRow(rows, who, cols).status !== "none";
     if (signed) yes++;
-    return `${signed ? "✅" : "❌"} **${describe(x).when}**${x === s.active ? " · check-in open now" : ""}`;
+    return `${signed ? "✅" : "❌"} **${describe(x).when}**${x === s.active ? " · check-in open now" : ""}${where(x)}`;
   });
 
   const foundAnywhere = [...tabs.values()].some(({ rows }) => findRow(rows, who, cols).status !== "none");
@@ -379,7 +392,7 @@ export async function attendance(sheet, cfg, now = new Date()) {
 /* ---------- Managing the schedule ---------- */
 
 /** Add an event, or edit the one already on that date. */
-export async function addEvent(sheet, cfg, { date, start, end, tab, by }, now = new Date()) {
+export async function addEvent(sheet, cfg, { date, start, end, tab, location, by }, now = new Date()) {
   const d = parseEventDate(date, cfg.tz, now);
   if (!d) return `I could not read the date "${date}". Use something like \`10/23\` or \`2026-10-23\`.`;
   const s = parseTime(start);
@@ -411,11 +424,15 @@ export async function addEvent(sheet, cfg, { date, start, end, tab, by }, now = 
   }
 
   const existing = (cfg.events || []).find((x) => x.date === d);
-  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), useTab, "", by || ""]);
+  // Left blank, an edit keeps the location it had; "none" clears it.
+  const typed = String(location ?? "").trim();
+  const loc = /^(none|clear|-)$/i.test(typed) ? "" : typed || existing?.location || "";
+  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), useTab, "", by || "", loc]);
 
   const x = timed({ date: d, start: s, end: e }, cfg);
   const desc = describe(x);
   return `${existing ? "Updated" : "Scheduled"} **${desc.when}**.\n` +
+    (loc ? `${locationLink(loc)}\n` : "") +
     `Check-in opens at **${desc.opens}** and closes when the event ends.\n` +
     (byDate
       ? `${signups} signed up for this date so far.`
@@ -441,7 +458,7 @@ export function listEvents(cfg, now = new Date()) {
   const lines = upcoming.map((x) => {
     const d = describe(x);
     const state = x === s.active ? "check-in **open now**" : `check-in opens ${d.opens}`;
-    return `**${d.when}**, ${state}`;
+    return `**${d.when}**, ${state}${where(x)}`;
   });
   return `**Upcoming events**\n${lines.join("\n")}${link}`;
 }

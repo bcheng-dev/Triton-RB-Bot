@@ -22,7 +22,8 @@ export const COMMANDS = [
       { name: "date", description: "Event date, like 10/23 or 2026-10-23", type: STRING, required: true },
       { name: "start", description: "Start time, like 6:30pm or 18:30", type: STRING, required: true },
       { name: "end", description: "End time, like 9:30pm or 21:30", type: STRING, required: true },
-      { name: "tab", description: "Signup tab, only if this event uses a different form", type: STRING }
+      { name: "tab", description: "Signup tab, only if this event uses a different form", type: STRING },
+      { name: "location", description: "Address or Google Maps link. Type none to clear it", type: STRING, max_length: 300 }
     ] },
   { name: "event-remove", description: "Take an event off the schedule (organizers)", type: 1,
     default_member_permissions: MANAGE_EVENTS,
