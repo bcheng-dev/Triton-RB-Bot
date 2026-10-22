@@ -207,6 +207,22 @@ the day everybody calls it.
 
 ---
 
+## Automatic deploys
+
+`.github/workflows/deploy.yml` runs the tests and deploys on every push to `main`, so
+you only need `wrangler deploy` by hand the first time. One-time setup:
+
+1. Cloudflare dashboard > **My Profile > API Tokens > Create Token** > template
+   **Edit Cloudflare Workers** > create, copy the token.
+2. Cloudflare dashboard > **Workers & Pages**, copy the **Account ID** on the right.
+3. GitHub repo > **Settings > Secrets and variables > Actions > New repository
+   secret**: add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+If the tests fail, nothing is deployed. Progress shows under the repo's **Actions**
+tab, and **Run workflow** there redeploys without a code change.
+
+---
+
 ## Local development
 
 ```bash

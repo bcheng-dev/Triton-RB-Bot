@@ -1,0 +1,32 @@
+# Deploys the Worker to Cloudflare on every push to main.
+# Needs two repo secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN   - from the "Edit Cloudflare Workers" token template
+#   CLOUDFLARE_ACCOUNT_ID  - shown on the Workers & Pages overview page
+# The bot's own secrets (DISCORD_*, SHEET_ID, GOOGLE_CREDENTIALS) stay on Cloudflare
+# and are kept across deploys, so they are not needed here.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
