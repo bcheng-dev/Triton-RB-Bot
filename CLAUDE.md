@@ -29,6 +29,15 @@ Brian is deploying this for the first time. The work splits in two:
   permission error, check this before anything else.
 - Pasting the Worker URL into the Discord portal's Interactions Endpoint URL field
 
+## Shipping changes
+
+The bot is live. Every push to `main` runs the tests and deploys to Cloudflare through
+`.github/workflows/deploy.yml`. Brian wants finished, tested changes merged into `main`
+for him, without waiting for him to merge a branch. Run `npm test` first; if tests
+fail, do not push to `main`. Do not run `npx wrangler deploy` by hand, since an out of
+date copy would overwrite the live bot. After a change to `src/commands.js`, remind
+him to run `/panel` in Discord so the new command list shows up.
+
 ## Secrets
 
 Do not ask him to paste tokens or the service account JSON into the chat, and do not
