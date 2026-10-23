@@ -18,7 +18,7 @@ Brian is deploying this for the first time. The work splits in two:
   from the form response tab, which is usually the whole question sentence.
 - `npx wrangler login`, `npx wrangler deploy`, `npx wrangler tail`
 - Running `node register.js` with his values
-- Running `npm test` (79 tests, no network needed) to confirm nothing is broken
+- Running `npm test` (83 tests, no network needed) to confirm nothing is broken
 - Reading errors and fixing them
 
 **He has to do these himself** (browser, accounts):
@@ -35,8 +35,8 @@ The bot is live. Every push to `main` runs the tests and deploys to Cloudflare t
 `.github/workflows/deploy.yml`. Brian wants finished, tested changes merged into `main`
 for him, without waiting for him to merge a branch. Run `npm test` first; if tests
 fail, do not push to `main`. Do not run `npx wrangler deploy` by hand, since an out of
-date copy would overwrite the live bot. After a change to `src/commands.js`, remind
-him to run `/panel` in Discord so the new command list shows up.
+date copy would overwrite the live bot. After a change to `src/commands.js`, tell
+him the new commands appear once anybody uses the bot, then Ctrl+R in Discord.
 
 ## Secrets
 
@@ -57,13 +57,13 @@ ping the moment he saves that field, and rejects the URL if nothing answers.
 ## Layout
 
 - `src/index.js` — the Worker: routing, signature check, permission gate
-- `src/discord.js` — signature verification, response shapes, posting the panel
+- `src/discord.js` — signature verification, response shapes, the panel and its button guide, keeping commands current
 - `src/google.js` — service account JWT via WebCrypto, Sheets REST calls
 - `src/logic.js` — what check-in means, no Discord or Google types, easy to test
 - `src/match.js` — matching a Discord member to a signup row
-- `src/commands.js` - the slash command list, shared by register.js and /panel
-- `register.js` - first-time command registration from Node; afterwards /panel does it
-- `test/` — 79 tests over matching, logic, the schedule, crypto, sheet writes and secret cleanup
+- `src/commands.js` - the slash command list, shared by register.js and the Worker
+- `register.js` - first-time command registration from Node; afterwards the Worker keeps it current
+- `test/` — 83 tests over matching, logic, the schedule, crypto, sheet writes and secret cleanup
 
 ## House rules
 

@@ -1,6 +1,6 @@
-/* The slash commands, in one place. register.js sends them from Node, and the Worker
-   re-sends them every time an organizer runs /panel, so a new command goes live with
-   a deploy and a /panel instead of needing the bot token on somebody's laptop. */
+/* The slash commands, in one place. register.js sends them from Node for the very first
+   setup; after that the Worker keeps every server's list matching this one by itself,
+   so a new command goes live with a deploy and nobody needs the bot token. */
 
 const MANAGE_EVENTS = String(1n << 33n);
 const STRING = 3, USER = 6;
@@ -15,8 +15,6 @@ export const COMMANDS = [
   { name: "checkin", description: "Check yourself in for the Riftbound event", type: 1 },
   { name: "events", description: "Upcoming events, when check-in opens, and sign-up links", type: 1 },
   { name: "mysignups", description: "Which upcoming events you are signed up for", type: 1 },
-  { name: "panel", description: "Post the check-in panel and refresh the bot's commands (organizers)", type: 1,
-    default_member_permissions: MANAGE_EVENTS },
   { name: "event-add", description: "Schedule an event, or edit the one on that date (organizers)", type: 1,
     default_member_permissions: MANAGE_EVENTS,
     options: [

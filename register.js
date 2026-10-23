@@ -1,6 +1,6 @@
 /* Registers the slash commands with Discord. You only need this for the very first
-   setup: after that, running /panel in the server re-sends the same list from the
-   Worker, using the bot token it already holds.
+   setup: after that, the Worker keeps every server's command list current by itself,
+   using the bot token it already holds, whenever anybody uses the bot.
 
    Usage:
      DISCORD_TOKEN=... DISCORD_APP_ID=... DISCORD_GUILD_ID=... node register.js

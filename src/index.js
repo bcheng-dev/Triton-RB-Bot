@@ -4,8 +4,7 @@
    this answers, and the Worker goes away again. That is what makes it always
    available on a free plan: there is no process to keep alive and nothing to sleep. */
 import {
-  verify, T, R, EPHEMERAL, json, defer, followUp, postPanel, panelMessage,
-  syncCommands, syncAllGuilds, ensureCommands, guildRoles
+  verify, T, R, EPHEMERAL, json, defer, followUp, panelMessage, ensureAllGuilds, guildRoles
 } from "./discord.js";
 import { Sheet } from "./google.js";
 import { COMMANDS } from "./commands.js";
@@ -134,12 +133,12 @@ export default {
     const body = JSON.parse(raw);
     if (body.type === T.PING) return json({ type: R.PONG });
 
-    /* Any use of the bot in a server quietly brings that server's slash commands up
-       to date, so a server it just joined, or a newly added command, needs nobody
-       to run /panel first. Runs after the reply; never slows the click down. */
+    /* Any use of the bot quietly brings the slash commands up to date, in this server
+       and in every other one it is in, so a server it just joined or a newly added
+       command needs nobody to do anything. Runs after the reply; never slows it down. */
     if (body.guild_id) {
       ctx.waitUntil(
-        ensureCommands(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
+        ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
           .catch((err) => console.error("command check failed", err))
       );
     }
@@ -193,35 +192,12 @@ export default {
       if (name === "rb-bot") {
         return json({ type: R.MESSAGE, data: { ...panelMessage(cfg.opensMinutes, links), flags: EPHEMERAL } });
       }
-      const organizerOnly = ["panel", "event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
+      const organizerOnly = ["event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
       if (organizerOnly.includes(name) && !(await isOrganizer(body, env))) return reply("Officers only.");
 
       if (name === "checkin") return background(() => checkIn(sheet, cfg, who(body)));
       if (name === "events") return background(async () => listEvents(cfg));
       if (name === "mysignups") return background(() => mySignups(sheet, cfg, who(body)));
-
-      if (name === "panel") {
-        return background(async () => {
-          let synced;
-          try {
-            const { synced: n, failed } = await syncAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, COMMANDS);
-            synced = `Commands refreshed in ${n} server${n === 1 ? "" : "s"}.` +
-              (failed.length ? ` Could not refresh: ${failed.join(", ")}.` : "");
-          } catch (err) {
-            // Listing servers failed; still refresh this one.
-            console.error(err);
-            try {
-              await syncCommands(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS);
-              synced = "Commands refreshed in this server.";
-            } catch (err2) {
-              console.error(err2);
-              synced = "Could not refresh the command list; the Worker log has the detail.";
-            }
-          }
-          await postPanel(env.DISCORD_BOT_TOKEN, body.channel_id, cfg.opensMinutes, links);
-          return `Panel posted. ${synced}`;
-        });
-      }
 
       if (name === "event-add") {
         return background(() => addEvent(sheet, cfg, { ...opts, by: who(body).username }));

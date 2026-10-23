@@ -1,41 +1,73 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { postPanel, syncAllGuilds } from "../src/discord.js";
+import { panelMessage, ensureAllGuilds, resetCommandChecks } from "../src/discord.js";
+import { COMMANDS } from "../src/commands.js";
 
-async function panel(t, links) {
-  let sent;
-  t.mock.method(globalThis, "fetch", async (url, init) => { sent = JSON.parse(init.body); return new Response("{}"); });
-  await postPanel("token", "channel", 30, links);
-  return sent.components.map((row) => row.components.map((b) => b.label));
-}
+const ALL = { signupUrl: "https://forms.example/signup", feedbackUrl: "https://forms.example/feedback", rankingsUrl: "https://standings.example/" };
+const labels = (msg) => msg.components.map((row) => row.components.map((b) => b.label));
 
-test("the panel puts actions on one row and form links on a second", async (t) => {
-  const rows = await panel(t, {
-    signupUrl: "https://forms.example/signup",
-    feedbackUrl: "https://forms.example/feedback",
-    rankingsUrl: "https://standings.example/"
-  });
+test("the panel puts actions on one row and links on a second", () => {
+  const rows = labels(panelMessage(30, ALL));
   assert.deepEqual(rows, [["Check in", "Am I in?", "Events", "My signups"], ["Sign up", "Feedback", "Rankings"]]);
   assert.ok(rows.every((r) => r.length <= 5), "Discord allows at most five buttons in a row");
 });
 
-test("form link buttons are left out when no link is set", async (t) => {
-  assert.deepEqual(await panel(t, { feedbackUrl: "https://forms.example/feedback" }),
-    [["Check in", "Am I in?", "Events", "My signups"], ["Feedback"]]);
-  assert.equal((await panel(t, {})).length, 1);
+test("every button has an emoji, and the guide explains each with the same one", () => {
+  const msg = panelMessage(30, ALL);
+  const guide = msg.embeds[0].description.split("\n");
+  for (const b of msg.components.flatMap((row) => row.components)) {
+    assert.ok(b.emoji?.name, `${b.label} needs an emoji`);
+    assert.ok(guide.some((line) => line.startsWith(`${b.emoji.name} **${b.label}**:`)), `guide line for ${b.label}`);
+  }
 });
 
-test("/panel's command sync reaches every server the bot is in", async (t) => {
+test("the guide uses the configured check-in window and points at /rb-bot", () => {
+  const text = panelMessage(45, ALL).embeds[0];
+  assert.match(text.description, /Works from 45 minutes before/);
+  assert.match(text.description, /`\/rb-bot`/);
+  assert.match(text.footer.text, /45 minutes/);
+});
+
+test("link buttons and their guide lines are left out when no link is set", () => {
+  const msg = panelMessage(30, { feedbackUrl: ALL.feedbackUrl });
+  assert.deepEqual(labels(msg), [["Check in", "Am I in?", "Events", "My signups"], ["Feedback"]]);
+  assert.doesNotMatch(msg.embeds[0].description, /Sign up|Rankings/);
+  assert.equal(panelMessage(30, {}).components.length, 1);
+});
+
+test("/panel is gone; /rb-bot replaces it", () => {
+  const names = COMMANDS.map((c) => c.name);
+  assert.ok(!names.includes("panel"));
+  assert.ok(names.includes("rb-bot"));
+});
+
+test("using the bot anywhere sets up every server, including one with no commands yet", async (t) => {
+  resetCommandChecks();
   const puts = [];
   t.mock.method(globalThis, "fetch", async (url, init = {}) => {
-    if (String(url).includes("/users/@me/guilds")) {
-      return new Response(JSON.stringify([{ id: "111", name: "Main" }, { id: "222", name: "Test" }, { id: "333", name: "Broken" }]));
+    const u = String(url);
+    if (u.includes("/users/@me/guilds")) {
+      return new Response(JSON.stringify([{ id: "main", name: "Main" }, { id: "fresh", name: "New" }, { id: "broken", name: "Broken" }]));
     }
-    puts.push(String(url).match(/guilds\/(\d+)\/commands/)[1]);
-    return String(url).includes("/333/") ? new Response("Missing Access", { status: 403 }) : new Response("[]");
+    const guild = u.match(/guilds\/(\w+)\/commands/)[1];
+    if (guild === "broken") return new Response("Missing Access", { status: 403 });
+    if (init.method === "PUT") { puts.push(guild); return new Response("[]"); }
+    return new Response("[]");   // Discord has no commands for this server yet
   });
   t.mock.method(console, "error", () => {});
-  const out = await syncAllGuilds("token", "app", [{ name: "checkin" }]);
-  assert.deepEqual(puts, ["111", "222", "333"]);
-  assert.deepEqual(out, { synced: 2, failed: ["Broken"] });
+  const out = await ensureAllGuilds("token", "app", "main", COMMANDS, 1e9);
+  assert.deepEqual(out, { main: "synced", fresh: "synced", broken: "failed" });
+  assert.deepEqual(puts, ["main", "fresh"]);
+});
+
+test("the all-server check also runs at most every ten minutes", async (t) => {
+  resetCommandChecks();
+  let listed = 0;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).includes("/users/@me/guilds")) { listed++; return new Response("[]"); }
+    return new Response("[]");
+  });
+  await ensureAllGuilds("t", "app", null, COMMANDS, 1e9);
+  await ensureAllGuilds("t", "app", null, COMMANDS, 1e9 + 60_000);
+  assert.equal(listed, 1);
 });

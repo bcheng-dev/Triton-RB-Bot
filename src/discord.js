@@ -70,51 +70,44 @@ export async function guildRoles(botToken, guildId) {
   return res.json();
 }
 
-/** Push the command list to every server the bot is in, so a server it was just
-    added to gets its commands the next time an organizer anywhere runs /panel.
-    Returns how many servers took it and which ones failed. */
-export async function syncAllGuilds(botToken, appId, commands) {
-  const res = await fetch("https://discord.com/api/v10/users/@me/guilds?limit=200", {
-    headers: { authorization: `Bot ${botToken}` }
-  });
-  if (!res.ok) throw new Error(`guild list failed: ${res.status} ${await res.text()}`);
-  const guilds = await res.json();
-  const failed = [];
-  for (const g of guilds) {
-    try {
-      await syncCommands(botToken, appId, g.id, commands);
-    } catch (err) {
-      console.error(err);
-      failed.push(g.name || g.id);
-    }
-  }
-  return { synced: guilds.length - failed.length, failed };
+/** Every button on the panel, with the line that explains it. The embed's guide is
+    built from this same list, so a button and its explanation always share an emoji.
+    Action buttons send the bot an interaction; link buttons just open a page. */
+function panelButtons(opensMinutes, { signupUrl, feedbackUrl, rankingsUrl } = {}) {
+  return [
+    { emoji: "✅", label: "Check in", style: 3, id: "rb:checkin",
+      help: `marks you present at the event. Works from ${opensMinutes} minutes before the event starts until it ends.` },
+    { emoji: "❓", label: "Am I in?", style: 2, id: "rb:status",
+      help: "tells you if you're already checked in." },
+    { emoji: "📅", label: "Events", style: 2, id: "rb:events",
+      help: "shows upcoming events, their times, where they are, and when check-in opens." },
+    { emoji: "📋", label: "My signups", style: 2, id: "rb:mine",
+      help: "shows every upcoming event with ✅ if you're signed up and ❌ if not." },
+    { emoji: "📝", label: "Sign up", url: signupUrl,
+      help: "opens the signup form. Pick the event date you're coming to." },
+    { emoji: "💬", label: "Feedback", url: feedbackUrl,
+      help: "tell us how the event went." },
+    { emoji: "🏆", label: "Rankings", url: rankingsUrl,
+      help: "see the current standings." }
+  ].filter((b) => b.id || b.url);   // a link with no address configured is left out
 }
 
-/** The panel: an embed and its buttons. /panel posts it in the channel for everyone;
-    /rb-bot shows the same thing to one person as a private reply. */
-export function panelMessage(opensMinutes, { signupUrl, feedbackUrl, rankingsUrl } = {}) {
-  const actions = [
-    { type: 2, style: 3, label: "Check in", emoji: { name: "✅" }, custom_id: "rb:checkin" },
-    { type: 2, style: 2, label: "Am I in?", custom_id: "rb:status" },
-    { type: 2, style: 2, label: "Events", emoji: { name: "📅" }, custom_id: "rb:events" },
-    { type: 2, style: 2, label: "My signups", emoji: { name: "📋" }, custom_id: "rb:mine" }
-  ];
-  // Link buttons open a form directly; Discord handles them, no interaction is sent.
-  // They get their own row because a row holds at most five buttons.
-  const links = [];
-  if (signupUrl) links.push({ type: 2, style: 5, label: "Sign up", emoji: { name: "📝" }, url: signupUrl });
-  if (feedbackUrl) links.push({ type: 2, style: 5, label: "Feedback", emoji: { name: "💬" }, url: feedbackUrl });
-  if (rankingsUrl) links.push({ type: 2, style: 5, label: "Rankings", emoji: { name: "🏆" }, url: rankingsUrl });
-  const rows = [{ type: 1, components: actions }];
-  if (links.length) rows.push({ type: 1, components: links });
+/** The panel: a guide to the buttons, and the buttons. /rb-bot shows it to whoever
+    asks, as a private reply. */
+export function panelMessage(opensMinutes, links = {}) {
+  const buttons = panelButtons(opensMinutes, links);
+  const component = (b) => b.id
+    ? { type: 2, style: b.style, label: b.label, emoji: { name: b.emoji }, custom_id: b.id }
+    : { type: 2, style: 5, label: b.label, emoji: { name: b.emoji }, url: b.url };
+  // Actions on the first row, links on the second: a row holds at most five buttons.
+  const rows = [buttons.filter((b) => b.id), buttons.filter((b) => b.url)]
+    .filter((r) => r.length)
+    .map((r) => ({ type: 1, components: r.map(component) }));
   return {
     embeds: [{
       title: "Riftbound check-in",
-      description: "Signed up on the form? Hit **Check in** and I will mark you present.\n\n" +
-        "**Events** shows what is coming up, and **My signups** which of those you are down for. " +
-        "**Sign up** opens the form; pick the date you are coming. **Feedback** tells us how it went, and **Rankings** shows the standings.\n\n" +
-        "Replies are only visible to you.",
+      description: buttons.map((b) => `${b.emoji} **${b.label}**: ${b.help}`).join("\n") +
+        "\n\nType `/rb-bot` any time to bring this up. Replies are only visible to you.",
       color: 0x1c5f7c,
       footer: { text: `Check-in opens ${opensMinutes} minutes before each event starts and closes when it ends.` }
     }],
@@ -122,18 +115,7 @@ export function panelMessage(opensMinutes, { signupUrl, feedbackUrl, rankingsUrl
   };
 }
 
-/** Post the check-in panel into a channel. Needs the bot token, not the interaction.
-    It gets pinned and reused for every event, so it names no particular event. */
-export async function postPanel(botToken, channelId, opensMinutes, links = {}) {
-  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bot ${botToken}` },
-    body: JSON.stringify(panelMessage(opensMinutes, links))
-  });
-  if (!res.ok) throw new Error(`panel post failed: ${res.status} ${await res.text()}`);
-}
-
-/* ---------- Keeping the command list current without anybody running /panel ---------- */
+/* ---------- Keeping the command list current, with nobody having to do anything ---------- */
 
 /** What matters about a command when comparing ours with what Discord has. */
 const fingerprint = (c) => JSON.stringify([
@@ -162,5 +144,31 @@ export async function ensureCommands(botToken, appId, guildId, commands, now = D
   return "synced";
 }
 
+let guildsCheckedAt = 0;
+
+/** The same check for every server the bot is in. A server it was just added to has
+    no commands at all, so nobody there can use the bot to set them up; any use of the
+    bot in another server does it instead. The server in use goes first. */
+export async function ensureAllGuilds(botToken, appId, currentGuildId, commands, now = Date.now()) {
+  const results = {};
+  if (currentGuildId) results[currentGuildId] = await ensureCommands(botToken, appId, currentGuildId, commands, now);
+  if (now - guildsCheckedAt < CHECK_EVERY_MS) return results;
+  guildsCheckedAt = now;
+  const res = await fetch("https://discord.com/api/v10/users/@me/guilds?limit=200", {
+    headers: { authorization: `Bot ${botToken}` }
+  });
+  if (!res.ok) throw new Error(`guild list failed: ${res.status} ${await res.text()}`);
+  for (const g of await res.json()) {
+    if (g.id in results) continue;
+    try {
+      results[g.id] = await ensureCommands(botToken, appId, g.id, commands, now);
+    } catch (err) {
+      console.error(`command check failed for ${g.name || g.id}`, err);
+      results[g.id] = "failed";
+    }
+  }
+  return results;
+}
+
 /** For tests: forget when each server was last checked. */
-export const resetCommandChecks = () => checkedAt.clear();
+export const resetCommandChecks = () => { checkedAt.clear(); guildsCheckedAt = 0; };

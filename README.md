@@ -16,7 +16,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 
 | | |
 |---|---|
-| `/rb-bot` | anyone: the whole panel as a private reply, buttons and all; nothing posted |
+| `/rb-bot` | anyone: the panel, with a guide to every button, as a private reply |
 | **Check in** button | the normal path, one click, private reply |
 | **Am I in?** button | whether they are already down for tonight |
 | **Events** button, `/events` | upcoming events, when check-in opens, the form link |
@@ -30,7 +30,6 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | `/checkin-for` | organizers: walk-ins and broken matches. Takes `member`, `name`, or both |
 | `/uncheckin` | organizers: undo a check-in. No options undoes your own, for testing |
 | `/attendance` | organizers: the current event's list |
-| `/panel` | organizers: post the button panel, and refresh the command list |
 
 Organizer commands are for **officers and above**: set `ORGANIZER_ROLE_IDS` to the
 Officer role's ID, and anyone with that role or any role ranked above it in **Server
@@ -84,16 +83,14 @@ Every check-in and undo is appended to the **Check-in Log** tab (`ATTENDANCE_TAB
 `/attendance` reads that log, so one signup can cover several dates. `/uncheckin`
 deletes nothing: it clears the **Checked in** cell and logs an `undo` row.
 
-**Adding a command later:** add it to `src/commands.js` and deploy. Any use of the bot in a
-server (a button, `/rb-bot`, `/checkin`) checks that server's command list in the
-background, at most every ten minutes, and fixes it if it has drifted. Running `/panel`
-still refreshes every server at once.
-The Worker re-sends the command list to every server the bot is in, using the bot
-token it already holds, so nobody needs the token again.
+**Adding a command later:** add it to `src/commands.js` and deploy. Any use of the bot
+(a button, `/rb-bot`, `/checkin`) checks the command list in every server the bot is in,
+in the background and at most every ten minutes, and fixes any that have drifted. It
+uses the bot token the Worker already holds, so nobody needs the token again.
 
 **Adding the bot to another server:** invite it with the OAuth2 URL from setup step
-1.4, then run `/panel` in a server that already has it. The new server gets the
-commands; press Ctrl+R there if they do not show. Every server shares the same
+1.4, then use the bot once in a server that already has it (any button or command).
+The new server gets the commands; press Ctrl+R there if they do not show. Every server shares the same
 schedule, signup sheet and Check-in Log.
 
 ---
@@ -159,7 +156,7 @@ Then the secrets:
 ```bash
 npx wrangler secret put DISCORD_PUBLIC_KEY     # from General Information
 npx wrangler secret put DISCORD_APP_ID
-npx wrangler secret put DISCORD_BOT_TOKEN      # only used to post the panel
+npx wrangler secret put DISCORD_BOT_TOKEN      # keeps the command list current
 npx wrangler secret put SHEET_ID               # the long string in the sheet URL
 npx wrangler secret put GOOGLE_CREDENTIALS     # paste the WHOLE service account JSON, one line
 npx wrangler deploy
@@ -193,7 +190,7 @@ On Windows PowerShell:
 $env:DISCORD_TOKEN="..."; $env:DISCORD_APP_ID="..."; $env:DISCORD_GUILD_ID="..."; node register.js
 ```
 
-Then in your channel, as an organizer: `/panel`. Pin the message.
+Then anyone can type `/rb-bot` to bring up the panel.
 
 ---
 
@@ -238,7 +235,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 79 tests, no network needed
+npm test          # 83 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 
@@ -253,10 +250,9 @@ should say the worker is up.
 **"I cannot open the signup sheet"** — the sheet is not shared with the service
 account address. Step 2.4.
 
-**Commands missing** — run `/panel` in the server, which refreshes the list.
-If `/panel` itself is missing, `register.js` was never run, or `DISCORD_GUILD_ID` was
-blank, in which case global registration can take an hour. Press Ctrl+R in Discord
-after either.
+**Commands missing** — use the bot once in any server that has it (a button or
+`/checkin`), wait a moment, then press Ctrl+R. That refreshes every server's list. If
+no server has any commands yet, `register.js` was never run.
 
 **Somebody who signed up is not found** — the private reply tells them the exact
 username and ID the bot saw, which is usually enough for them to spot their own typo.
