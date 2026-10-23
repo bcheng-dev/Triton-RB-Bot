@@ -71,7 +71,8 @@ export async function guildRoles(botToken, guildId) {
 }
 
 /** Every button on the panel, with the line that explains it. The embed's guide is
-    built from this same list, so a button and its explanation always share an emoji.
+    built from this same list, so the two never drift apart. The guide stays plain
+    text to keep it easy to read; the emojis are only on the buttons.
     Action buttons send the bot an interaction; link buttons just open a page. */
 function panelButtons(opensMinutes, { signupUrl, feedbackUrl, rankingsUrl } = {}) {
   return [
@@ -106,7 +107,7 @@ export function panelMessage(opensMinutes, links = {}) {
   return {
     embeds: [{
       title: "TNN Bot",
-      description: buttons.map((b) => `${b.emoji} **${b.label}**: ${b.help}`).join("\n") +
+      description: buttons.map((b) => `**${b.label}**: ${b.help}`).join("\n") +
         "\n\nType `/rb-bot` any time to bring this up. Replies are only visible to you.",
       color: 0x1c5f7c,
       footer: { text: `Check-in opens ${opensMinutes} minutes before each event starts and closes when it ends.` }

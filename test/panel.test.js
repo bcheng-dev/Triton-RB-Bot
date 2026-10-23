@@ -12,12 +12,13 @@ test("the panel puts actions on one row and links on a second", () => {
   assert.ok(rows.every((r) => r.length <= 5), "Discord allows at most five buttons in a row");
 });
 
-test("every button has an emoji, and the guide explains each with the same one", () => {
+test("every button has an emoji, and the guide explains each in plain text", () => {
   const msg = panelMessage(30, ALL);
   const guide = msg.embeds[0].description.split("\n");
   for (const b of msg.components.flatMap((row) => row.components)) {
     assert.ok(b.emoji?.name, `${b.label} needs an emoji`);
-    assert.ok(guide.some((line) => line.startsWith(`${b.emoji.name} **${b.label}**:`)), `guide line for ${b.label}`);
+    assert.ok(guide.some((line) => line.startsWith(`**${b.label}**:`)), `guide line for ${b.label}`);
+    assert.ok(!guide.some((line) => line.startsWith(b.emoji.name)), `no emoji in front of ${b.label}'s line`);
   }
 });
 
