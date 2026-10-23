@@ -11,6 +11,7 @@ const who = [
 ];
 
 export const COMMANDS = [
+  { name: "rb-bot", description: "Show the check-in panel with all its buttons (only you see it)", type: 1 },
   { name: "checkin", description: "Check yourself in for the Riftbound event", type: 1 },
   { name: "events", description: "Upcoming events, when check-in opens, and sign-up links", type: 1 },
   { name: "mysignups", description: "Which upcoming events you are signed up for", type: 1 },

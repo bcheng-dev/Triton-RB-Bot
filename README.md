@@ -16,6 +16,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 
 | | |
 |---|---|
+| `/rb-bot` | anyone: the whole panel as a private reply, buttons and all; nothing posted |
 | **Check in** button | the normal path, one click, private reply |
 | **Am I in?** button | whether they are already down for tonight |
 | **Events** button, `/events` | upcoming events, when check-in opens, the form link |
@@ -83,7 +84,10 @@ Every check-in and undo is appended to the **Check-in Log** tab (`ATTENDANCE_TAB
 `/attendance` reads that log, so one signup can cover several dates. `/uncheckin`
 deletes nothing: it clears the **Checked in** cell and logs an `undo` row.
 
-**Adding a command later:** add it to `src/commands.js`, deploy, then run `/panel`.
+**Adding a command later:** add it to `src/commands.js` and deploy. Any use of the bot in a
+server (a button, `/rb-bot`, `/checkin`) checks that server's command list in the
+background, at most every ten minutes, and fixes it if it has drifted. Running `/panel`
+still refreshes every server at once.
 The Worker re-sends the command list to every server the bot is in, using the bot
 token it already holds, so nobody needs the token again.
 
@@ -234,7 +238,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 75 tests, no network needed
+npm test          # 79 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

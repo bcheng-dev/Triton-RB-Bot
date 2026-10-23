@@ -4,7 +4,8 @@
    this answers, and the Worker goes away again. That is what makes it always
    available on a free plan: there is no process to keep alive and nothing to sleep. */
 import {
-  verify, T, R, EPHEMERAL, json, defer, followUp, postPanel, syncCommands, syncAllGuilds, guildRoles
+  verify, T, R, EPHEMERAL, json, defer, followUp, postPanel, panelMessage,
+  syncCommands, syncAllGuilds, ensureCommands, guildRoles
 } from "./discord.js";
 import { Sheet } from "./google.js";
 import { COMMANDS } from "./commands.js";
@@ -133,7 +134,18 @@ export default {
     const body = JSON.parse(raw);
     if (body.type === T.PING) return json({ type: R.PONG });
 
+    /* Any use of the bot in a server quietly brings that server's slash commands up
+       to date, so a server it just joined, or a newly added command, needs nobody
+       to run /panel first. Runs after the reply; never slows the click down. */
+    if (body.guild_id) {
+      ctx.waitUntil(
+        ensureCommands(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
+          .catch((err) => console.error("command check failed", err))
+      );
+    }
+
     const cfg = config(env);
+    const links = { signupUrl: cfg.formUrl, feedbackUrl: cfg.feedbackUrl, rankingsUrl: cfg.rankingsUrl };
     const reply = (content) => json({ type: R.MESSAGE, data: { content, flags: EPHEMERAL } });
 
     /* A half-pasted secret would otherwise throw here, and Discord would only show
@@ -175,6 +187,12 @@ export default {
     if (body.type === T.COMMAND) {
       const name = body.data?.name;
       const opts = optionMap(body);
+
+      // The panel for one person, privately. No sheet, no posting, no organizer
+      // check: anybody can summon it, and its buttons work like the pinned one's.
+      if (name === "rb-bot") {
+        return json({ type: R.MESSAGE, data: { ...panelMessage(cfg.opensMinutes, links), flags: EPHEMERAL } });
+      }
       const organizerOnly = ["panel", "event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
       if (organizerOnly.includes(name) && !(await isOrganizer(body, env))) return reply("Officers only.");
 
@@ -200,7 +218,7 @@ export default {
               synced = "Could not refresh the command list; the Worker log has the detail.";
             }
           }
-          await postPanel(env.DISCORD_BOT_TOKEN, body.channel_id, cfg.opensMinutes, { signupUrl: cfg.formUrl, feedbackUrl: cfg.feedbackUrl, rankingsUrl: cfg.rankingsUrl });
+          await postPanel(env.DISCORD_BOT_TOKEN, body.channel_id, cfg.opensMinutes, links);
           return `Panel posted. ${synced}`;
         });
       }
