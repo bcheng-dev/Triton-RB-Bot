@@ -108,7 +108,8 @@ export function parseEvents(rows, cfg, now = new Date()) {
     start: parseTime(r[1]),
     end: parseTime(r[2]),
     tab: String(r[3] ?? "").trim(),
-    location: String(r[6] ?? "").trim(),
+    address: String(r[6] ?? "").trim(),
+    place: String(r[7] ?? "").trim(),
     _line: r._line
   })).filter((e) => e.date && e.start !== null && e.end !== null);
 }
@@ -140,16 +141,22 @@ export function currentEvent(cfg, now = new Date()) {
   return s.next || s.last;
 }
 
-/** A Google Maps link pasted as is, or an address turned into a Maps search, as a
-    Discord link that does not unfurl into a big preview. Empty string when unset. */
-export function locationLink(loc) {
-  const s = String(loc ?? "").replace(/[<>]/g, "").trim();
-  if (!s) return "";
-  if (/^https?:\/\/\S+$/i.test(s)) return `📍 [Map](<${s}>)`;
-  const label = s.replace(/([\[\]*_~`|\\])/g, "\\$1");
-  return `📍 [${label}](<https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s)}>)`;
+/** The location as one Discord link that does not unfurl into a big preview: the
+    place name as the text, going to the address. The address can be a pasted Google
+    Maps link, used as is, or plain text, turned into a Maps search. With only one of
+    the two, it stands in for both. Empty string when neither is set. */
+export function locationLink(address, place) {
+  const clean = (v) => String(v ?? "").replace(/[<>]/g, "").trim();
+  const a = clean(address), p = clean(place);
+  if (!a && !p) return "";
+  const isUrl = /^https?:\/\/\S+$/i.test(a);
+  const search = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  const target = isUrl ? a : search(a || p);
+  const label = (p || (isUrl ? "Map" : a)).replace(/([\[\]*_~`|\\])/g, "\\$1");
+  return `📍 [${label}](<${target}>)`;
 }
-const where = (x) => (x.ev.location ? ` · ${locationLink(x.ev.location)}` : "");
+const linkFor = (ev) => locationLink(ev.address, ev.place);
+const where = (x) => (linkFor(x.ev) ? ` · ${linkFor(x.ev)}` : "");
 
 export function describe(x) {
   const day = fmtDay(x.start);
@@ -194,7 +201,7 @@ export async function checkIn(sheet, cfg, who, now = new Date()) {
     if (s.next) {
       const d = describe(s.next);
       return `Check-in is not open right now. The next event is **${d.when}**, and check-in opens at **${d.opens}**.` +
-        (s.next.ev.location ? `\n${locationLink(s.next.ev.location)}` : "");
+        (linkFor(s.next.ev) ? `\n${linkFor(s.next.ev)}` : "");
     }
     return "Check-in is not open: no upcoming events are scheduled. An organizer can add one with `/event-add`.";
   }
@@ -397,7 +404,7 @@ export async function attendance(sheet, cfg, now = new Date()) {
 /* ---------- Managing the schedule ---------- */
 
 /** Add an event, or edit the one already on that date. */
-export async function addEvent(sheet, cfg, { date, start, end, tab, location, by }, now = new Date()) {
+export async function addEvent(sheet, cfg, { date, start, end, tab, location, address, by }, now = new Date()) {
   const d = parseEventDate(date, cfg.tz, now);
   if (!d) return `I could not read the date "${date}". Use something like \`10/23\` or \`2026-10-23\`.`;
   const s = parseTime(start);
@@ -429,17 +436,20 @@ export async function addEvent(sheet, cfg, { date, start, end, tab, location, by
   }
 
   const existing = (cfg.events || []).find((x) => x.date === d);
-  // Left blank, an edit keeps the location it had; "none" clears it.
-  const typed = String(location ?? "").trim();
-  const loc = /^(none|clear|-)$/i.test(typed) ? "" : typed || existing?.location || "";
+  // `location` is the place name people see, `address` is where its link goes. Left
+  // blank, an edit keeps what it had; "none" clears it, and location:none clears both.
+  const typed = (v) => String(v ?? "").trim();
+  const cleared = (v) => /^(none|clear|-)$/i.test(typed(v));
+  const place = cleared(location) ? "" : typed(location) || existing?.place || "";
+  const addr = cleared(location) || cleared(address) ? "" : typed(address) || existing?.address || "";
   // The usual tab is stored blank, so renaming SIGNUP_TAB later carries every event along.
   const savedTab = useTab === cfg.defaultTab ? "" : useTab;
-  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), savedTab, "", by || "", loc]);
+  await sheet.writeEvent(existing ? existing._line : null, [d, hhmm(s), hhmm(e), savedTab, "", by || "", addr, place]);
 
   const x = timed({ date: d, start: s, end: e }, cfg);
   const desc = describe(x);
   return `${existing ? "Updated" : "Scheduled"} **${desc.when}**.\n` +
-    (loc ? `${locationLink(loc)}\n` : "") +
+    (place || addr ? `${locationLink(addr, place)}\n` : "") +
     `Check-in opens at **${desc.opens}** and closes when the event ends.\n` +
     (byDate
       ? `${signups} signed up for this date so far.`

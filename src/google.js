@@ -143,10 +143,10 @@ export class Sheet {
 
   /** The event schedule lives in its own tab so organizers can see it, and the
       Worker, which keeps nothing between requests, can read it back. One row per
-      event: Date, Start, End, Signup tab, Signup form, Added by, Location. */
+      event: Date, Start, End, Signup tab, Signup form, Added by, Location (the address or Maps link), Location name. */
   async readEvents() {
     try {
-      const data = await this.call(`/values/${encodeURIComponent(`${q(this.cfg.eventsTab)}!A2:G`)}`);
+      const data = await this.call(`/values/${encodeURIComponent(`${q(this.cfg.eventsTab)}!A2:H`)}`);
       return (data.values || []).map((r, i) => Object.assign([...r], { _line: i + 2 }));
     } catch (err) {
       if (/Unable to parse range/i.test(String(err.message))) return [];   // tab not made yet
@@ -158,19 +158,18 @@ export class Sheet {
   async writeEvent(line, row) {
     const tab = q(this.cfg.eventsTab);
     if (!line) await this.ensureTab(this.cfg.eventsTab);
-    // Sheets made before the Location column existed get its header added here.
-    const head = (await this.call(`/values/${encodeURIComponent(`${tab}!A1:G1`)}`)).values?.[0] || [];
+    // Sheets made before the location columns existed get their headers added here.
+    const HEAD = ["Date", "Start", "End", "Signup tab", "Signup form", "Added by", "Location", "Location name"];
+    const head = (await this.call(`/values/${encodeURIComponent(`${tab}!A1:H1`)}`)).values?.[0] || [];
     if (!head.length) {
-      await this.call(`/values/${encodeURIComponent(`${tab}!A1`)}?valueInputOption=RAW`, {
-        method: "PUT",
-        body: JSON.stringify({ values: [["Date", "Start", "End", "Signup tab", "Signup form", "Added by", "Location"]] })
-      });
-    } else if (!String(head[6] ?? "").trim()) {
-      await this.call(`/values/${encodeURIComponent(`${tab}!G1`)}?valueInputOption=RAW`,
-        { method: "PUT", body: JSON.stringify({ values: [["Location"]] }) });
+      await this.call(`/values/${encodeURIComponent(`${tab}!A1`)}?valueInputOption=RAW`,
+        { method: "PUT", body: JSON.stringify({ values: [HEAD] }) });
+    } else if (!String(head[6] ?? "").trim() || !String(head[7] ?? "").trim()) {
+      await this.call(`/values/${encodeURIComponent(`${tab}!G1:H1`)}?valueInputOption=RAW`,
+        { method: "PUT", body: JSON.stringify({ values: [HEAD.slice(6)] }) });
     }
     if (line) {
-      await this.call(`/values/${encodeURIComponent(`${tab}!A${line}:G${line}`)}?valueInputOption=RAW`,
+      await this.call(`/values/${encodeURIComponent(`${tab}!A${line}:H${line}`)}?valueInputOption=RAW`,
         { method: "PUT", body: JSON.stringify({ values: [row] }) });
       return;
     }
@@ -179,7 +178,7 @@ export class Sheet {
   }
 
   async clearEvent(line) {
-    await this.call(`/values/${encodeURIComponent(`${q(this.cfg.eventsTab)}!A${line}:G${line}`)}:clear`,
+    await this.call(`/values/${encodeURIComponent(`${q(this.cfg.eventsTab)}!A${line}:H${line}`)}:clear`,
       { method: "POST", body: "{}" });
   }
 

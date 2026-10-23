@@ -100,7 +100,7 @@ test("event-add schedules an event on the one signup form", async () => {
   const cfg = formCfg();
   const s = scheduleSheet(cfg);
   const out = await addEvent(s, cfg, { date: "10/23", start: "6:30pm", end: "9:30pm", by: "brian" }, la(19, 12));
-  assert.deepEqual(s.writes, [{ line: null, row: ["2026-10-23", "18:30", "21:30", "", "", "brian", ""] }]);
+  assert.deepEqual(s.writes, [{ line: null, row: ["2026-10-23", "18:30", "21:30", "", "", "brian", "", ""] }]);
   assert.match(out, /Scheduled \*\*Fri, Oct 23, 6:30 PM to 9:30 PM\*\*/);
   assert.match(out, /opens at \*\*6:00 PM\*\*/);
   assert.match(out, /2 signed up for this date so far/);
@@ -215,32 +215,49 @@ test("my signups skips events that are over", async () => {
 
 /* ---------- Locations ---------- */
 
-test("event-add saves a location, and an edit without one keeps it", async () => {
+const MAPS = "https://www.google.com/maps/search/?api=1&query=";
+
+test("event-add: the location name is the link text, the address is where it goes", async () => {
   const cfg = formCfg();
   const s = scheduleSheet(cfg);
-  const out = await addEvent(s, cfg, { date: "10/23", start: "6:30pm", end: "9:30pm", location: "Price Center East, La Jolla", by: "brian" }, la(19, 12));
-  assert.equal(s.writes[0].row[6], "Price Center East, La Jolla");
-  assert.match(out, /📍 \[Price Center East, La Jolla\]\(<https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=Price%20Center%20East%2C%20La%20Jolla>\)/);
-
-  const cfg2 = { ...formCfg(), events: [{ ...NIGHT, location: "Geisel", _line: 3 }] };
-  const s2 = scheduleSheet(cfg2);
-  await addEvent(s2, cfg2, { date: "10/23", start: "7pm", end: "10pm" }, la(19, 12));
-  assert.equal(s2.writes[0].row[6], "Geisel");
-  await addEvent(s2, cfg2, { date: "10/23", start: "7pm", end: "10pm", location: "none" }, la(19, 12));
-  assert.equal(s2.writes[1].row[6], "");
+  const out = await addEvent(s, cfg, {
+    date: "10/23", start: "6:30pm", end: "9:30pm",
+    location: "Price Center East", address: "9500 Gilman Dr, La Jolla", by: "brian"
+  }, la(19, 12));
+  assert.deepEqual(s.writes[0].row.slice(6), ["9500 Gilman Dr, La Jolla", "Price Center East"]);
+  assert.ok(out.includes(`📍 [Price Center East](<${MAPS}9500%20Gilman%20Dr%2C%20La%20Jolla>)`), out);
 });
 
-test("a pasted Google Maps link is used as is, and the events list shows it", () => {
-  assert.equal(locationLink("https://maps.app.goo.gl/abc123"), "📍 [Map](<https://maps.app.goo.gl/abc123>)");
-  assert.equal(locationLink(""), "");
+test("event-add: an edit keeps the location, none clears it", async () => {
+  const cfg = { ...formCfg(), events: [{ ...NIGHT, address: "9500 Gilman Dr", place: "Geisel", _line: 3 }] };
+  const s = scheduleSheet(cfg);
+  await addEvent(s, cfg, { date: "10/23", start: "7pm", end: "10pm" }, la(19, 12));
+  assert.deepEqual(s.writes[0].row.slice(6), ["9500 Gilman Dr", "Geisel"]);
+  await addEvent(s, cfg, { date: "10/23", start: "7pm", end: "10pm", address: "none" }, la(19, 12));
+  assert.deepEqual(s.writes[1].row.slice(6), ["", "Geisel"]);
+  await addEvent(s, cfg, { date: "10/23", start: "7pm", end: "10pm", location: "none" }, la(19, 12));
+  assert.deepEqual(s.writes[2].row.slice(6), ["", ""]);
+});
+
+test("location links with only one half, or a pasted Maps link", () => {
+  const url = "https://maps.app.goo.gl/abc123";
+  assert.equal(locationLink(url, "Price Center"), `📍 [Price Center](<${url}>)`);
+  assert.equal(locationLink(url, ""), `📍 [Map](<${url}>)`);
+  assert.equal(locationLink("", "Geisel Library"), `📍 [Geisel Library](<${MAPS}Geisel%20Library>)`);
+  assert.equal(locationLink("9500 Gilman Dr", ""), `📍 [9500 Gilman Dr](<${MAPS}9500%20Gilman%20Dr>)`);
+  assert.equal(locationLink("", ""), "");
+});
+
+test("the events list shows each event's location", () => {
   const cfg = {
     ...base(),
     events: parseEvents([
-      Object.assign(["2026-10-23", "18:30", "21:30", "Signups", "", "brian", "https://maps.app.goo.gl/abc123"], { _line: 2 }),
-      Object.assign(["2026-10-30", "18:30", "21:30", "Signups"], { _line: 3 })
+      Object.assign(["2026-10-23", "18:30", "21:30", "", "", "brian", "https://maps.app.goo.gl/abc123", "Price Center"], { _line: 2 }),
+      Object.assign(["2026-10-30", "18:30", "21:30", ""], { _line: 3 })
     ], { tz: "America/Los_Angeles" })
   };
   const out = listEvents(cfg, la(20, 12));
-  assert.match(out, /Oct 23.*\[Map\]\(<https:\/\/maps\.app\.goo\.gl\/abc123>\)/);
+  assert.match(out, /Oct 23.*📍 \[Price Center\]\(<https:\/\/maps\.app\.goo\.gl\/abc123>\)/);
   assert.doesNotMatch(out.split("\n").find((l) => l.includes("Oct 30")), /📍/);
 });
+
