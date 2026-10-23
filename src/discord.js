@@ -115,6 +115,17 @@ export function panelMessage(opensMinutes, links = {}) {
   };
 }
 
+/** Post the panel in a channel for everybody, as the bot. /panel uses this so officers
+    can put up one message to pin; /rb-bot shows the same panel privately instead. */
+export async function postPanel(botToken, channelId, opensMinutes, links = {}) {
+  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bot ${botToken}` },
+    body: JSON.stringify(panelMessage(opensMinutes, links))
+  });
+  if (!res.ok) throw new Error(`panel post failed: ${res.status} ${await res.text()}`);
+}
+
 /* ---------- Keeping the command list current, with nobody having to do anything ---------- */
 
 /** What matters about a command when comparing ours with what Discord has. */

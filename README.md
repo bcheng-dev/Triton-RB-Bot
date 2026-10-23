@@ -17,6 +17,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | | |
 |---|---|
 | `/rb-bot` | anyone: the panel, with a guide to every button, as a private reply |
+| `/panel` | officers: post that panel in the channel for everyone, to pin; also refreshes every server's commands right away |
 | **Check in** button | the normal path, one click, private reply |
 | **Am I in?** button | whether they are already down for tonight |
 | **Events** button, `/events` | upcoming events, when check-in opens, the form link |
@@ -86,7 +87,8 @@ deletes nothing: it clears the **Checked in** cell and logs an `undo` row.
 **Adding a command later:** add it to `src/commands.js` and deploy. Any use of the bot
 (a button, `/rb-bot`, `/checkin`) checks the command list in every server the bot is in,
 in the background and at most every ten minutes, and fixes any that have drifted. It
-uses the bot token the Worker already holds, so nobody needs the token again.
+uses the bot token the Worker already holds, so nobody needs the token again. An
+officer's `/panel` does the same check at once, without the ten-minute wait.
 
 **Adding the bot to another server:** invite it with the OAuth2 URL from setup step
 1.4, then use the bot once in a server that already has it (any button or command).
@@ -190,7 +192,8 @@ On Windows PowerShell:
 $env:DISCORD_TOKEN="..."; $env:DISCORD_APP_ID="..."; $env:DISCORD_GUILD_ID="..."; node register.js
 ```
 
-Then anyone can type `/rb-bot` to bring up the panel.
+Then an officer runs `/panel` in the check-in channel and pins it; anyone can also type
+`/rb-bot` to bring up the panel privately.
 
 ---
 
@@ -235,7 +238,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 83 tests, no network needed
+npm test          # 85 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

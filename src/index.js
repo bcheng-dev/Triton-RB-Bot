@@ -4,7 +4,8 @@
    this answers, and the Worker goes away again. That is what makes it always
    available on a free plan: there is no process to keep alive and nothing to sleep. */
 import {
-  verify, T, R, EPHEMERAL, json, defer, followUp, panelMessage, ensureAllGuilds, guildRoles
+  verify, T, R, EPHEMERAL, json, defer, followUp, panelMessage, postPanel,
+  ensureAllGuilds, resetCommandChecks, guildRoles
 } from "./discord.js";
 import { Sheet } from "./google.js";
 import { COMMANDS } from "./commands.js";
@@ -159,20 +160,23 @@ export default {
     }
     const sheet = new Sheet(creds, env.SHEET_ID, cfg);
 
-    /* Everything past here touches Google, which is slower than Discord's three
-       second deadline allows for. So: acknowledge now, finish in the background.
-       The schedule is read first, because it decides which signup tab to use. */
-    const background = (work) => {
+    /* Work slower than Discord's three second deadline: acknowledge now, finish in
+       the background, and edit the real answer in when it is ready. */
+    const later = (work) => {
       ctx.waitUntil(
-        (async () => {
-          applyEvents(cfg, parseEvents(await sheet.readEvents(), cfg));
-          return work();
-        })()
+        work()
           .then((text) => followUp(env.DISCORD_APP_ID, body.token, text))
           .catch((err) => followUp(env.DISCORD_APP_ID, body.token, explain(err)))
       );
       return defer();
     };
+
+    /* Most of what follows touches the sheet. The schedule is read first, because
+       it decides which signup tab to use. */
+    const background = (work) => later(async () => {
+      applyEvents(cfg, parseEvents(await sheet.readEvents(), cfg));
+      return work();
+    });
 
     if (body.type === T.COMPONENT) {
       const id = body.data?.custom_id;
@@ -192,12 +196,36 @@ export default {
       if (name === "rb-bot") {
         return json({ type: R.MESSAGE, data: { ...panelMessage(cfg.opensMinutes, links), flags: EPHEMERAL } });
       }
-      const organizerOnly = ["event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
+      const organizerOnly = ["panel", "event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
       if (organizerOnly.includes(name) && !(await isOrganizer(body, env))) return reply("Officers only.");
 
       if (name === "checkin") return background(() => checkIn(sheet, cfg, who(body)));
       if (name === "events") return background(async () => listEvents(cfg));
       if (name === "mysignups") return background(() => mySignups(sheet, cfg, who(body)));
+
+      // Officers: put the panel up in this channel for everyone, and bring every
+      // server's commands up to date now rather than on the next ten-minute check.
+      if (name === "panel") {
+        return later(async () => {   // needs no sheet, so a Google hiccup cannot stop it
+          await postPanel(env.DISCORD_BOT_TOKEN, body.channel_id, cfg.opensMinutes, links);
+          let note;
+          try {
+            resetCommandChecks();
+            const results = Object.values(
+              await ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
+            );
+            const updated = results.filter((r) => r === "synced").length;
+            const failed = results.filter((r) => r === "failed").length;
+            note = `Commands checked in ${results.length} server${results.length === 1 ? "" : "s"}` +
+              (updated ? `, ${updated} updated` : ", all current") +
+              (failed ? `; ${failed} could not be reached (see the Worker log).` : ".");
+          } catch (err) {
+            console.error(err);
+            note = "Could not check the command lists; the Worker log has the detail.";
+          }
+          return `Panel posted. Pin it so everyone can find it. ${note}`;
+        });
+      }
 
       if (name === "event-add") {
         return background(() => addEvent(sheet, cfg, { ...opts, by: who(body).username }));

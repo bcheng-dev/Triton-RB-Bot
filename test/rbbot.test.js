@@ -84,3 +84,31 @@ test("the command check runs at most every ten minutes per server", async (t) =>
   assert.equal(await ensureCommands("t", "app", "g", COMMANDS, 1e9 + 11 * 60_000), "unchanged");
   assert.equal(await ensureCommands("t", "app", null, COMMANDS, 1e9), "skipped", "no server, nothing to check");
 });
+
+const asMember = (roles, permissions = "0") => ({
+  type: 2, token: "tok", guild_id: "guild9", channel_id: "chan9",
+  data: { name: "panel" }, member: { roles, permissions, user: { id: "1", username: "someone" } }
+});
+
+test("/panel turns away anyone below Officer", async (t) => {
+  resetCommandChecks();
+  const { json, calls } = await discordSends(t, asMember(["member"]), { ORGANIZER_ROLE_IDS: "officer-role" });
+  assert.equal(json.type, 4);
+  assert.match(json.data.content, /Officers only/);
+  assert.ok(!calls.some(([u, m]) => u.includes("/channels/chan9/messages") && m === "POST"), "nothing posted");
+});
+
+test("/panel from an officer posts the panel publicly and refreshes commands", async (t) => {
+  resetCommandChecks();
+  const ADMIN = String(1n << 3n);
+  const { json, calls } = await discordSends(t, asMember([], ADMIN), { ORGANIZER_ROLE_IDS: "officer-role" });
+  assert.equal(json.type, 5, "acknowledged, finished in the background");
+  const post = globalThis.fetch.mock.calls.find((c) => String(c.arguments[0]).includes("/channels/chan9/messages"));
+  assert.ok(post, "panel posted in the channel");
+  const sent = JSON.parse(post.arguments[1].body);
+  assert.equal(sent.flags, undefined, "public, not private");
+  assert.equal(sent.embeds[0].title, "Riftbound check-in");
+  assert.ok(calls.some(([u]) => u.includes("/users/@me/guilds")), "every server's commands checked");
+  const reply = globalThis.fetch.mock.calls.find((c) => String(c.arguments[0]).includes("/messages/@original"));
+  assert.match(JSON.parse(reply.arguments[1].body).content, /Panel posted/);
+});

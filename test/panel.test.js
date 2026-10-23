@@ -35,10 +35,10 @@ test("link buttons and their guide lines are left out when no link is set", () =
   assert.equal(panelMessage(30, {}).components.length, 1);
 });
 
-test("/panel is gone; /rb-bot replaces it", () => {
-  const names = COMMANDS.map((c) => c.name);
-  assert.ok(!names.includes("panel"));
-  assert.ok(names.includes("rb-bot"));
+test("/panel is for officers; /rb-bot is for everyone", () => {
+  const byName = Object.fromEntries(COMMANDS.map((c) => [c.name, c]));
+  assert.equal(byName.panel.default_member_permissions, String(1n << 33n), "hidden from members without Manage Events");
+  assert.equal(byName["rb-bot"].default_member_permissions, undefined, "visible to everyone");
 });
 
 test("using the bot anywhere sets up every server, including one with no commands yet", async (t) => {
