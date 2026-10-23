@@ -38,7 +38,7 @@ test("/rb-bot shows anybody the full panel, privately, with no officer role", as
   });
   assert.equal(json.type, 4, "answers straight away, no deferral");
   assert.equal(json.data.flags, 64, "only the person who asked sees it");
-  assert.equal(json.data.embeds[0].title, "Riftbound check-in");
+  assert.equal(json.data.embeds[0].title, "TNN Bot");
   const labels = json.data.components.map((row) => row.components.map((b) => b.label));
   assert.deepEqual(labels, [["Check in", "Am I in?", "Events", "My signups"], ["Sign up", "Rankings"]]);
 });
@@ -107,7 +107,7 @@ test("/panel from an officer posts the panel publicly and refreshes commands", a
   assert.ok(post, "panel posted in the channel");
   const sent = JSON.parse(post.arguments[1].body);
   assert.equal(sent.flags, undefined, "public, not private");
-  assert.equal(sent.embeds[0].title, "Riftbound check-in");
+  assert.equal(sent.embeds[0].title, "TNN Bot");
   assert.ok(calls.some(([u]) => u.includes("/users/@me/guilds")), "every server's commands checked");
   const reply = globalThis.fetch.mock.calls.find((c) => String(c.arguments[0]).includes("/messages/@original"));
   assert.match(JSON.parse(reply.arguments[1].body).content, /Panel posted/);

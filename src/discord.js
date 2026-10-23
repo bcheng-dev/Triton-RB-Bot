@@ -105,7 +105,7 @@ export function panelMessage(opensMinutes, links = {}) {
     .map((r) => ({ type: 1, components: r.map(component) }));
   return {
     embeds: [{
-      title: "Riftbound check-in",
+      title: "TNN Bot",
       description: buttons.map((b) => `${b.emoji} **${b.label}**: ${b.help}`).join("\n") +
         "\n\nType `/rb-bot` any time to bring this up. Replies are only visible to you.",
       color: 0x1c5f7c,
