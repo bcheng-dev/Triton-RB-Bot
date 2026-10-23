@@ -72,3 +72,13 @@ test("the all-server check also runs at most every ten minutes", async (t) => {
   await ensureAllGuilds("t", "app", null, COMMANDS, 1e9 + 60_000);
   assert.equal(listed, 1);
 });
+
+test("PANEL_FOR_EVERYONE shows /panel to every member and changes nothing else", async () => {
+  const { commandList } = await import("../src/commands.js");
+  const open = Object.fromEntries(commandList({ panelForEveryone: true }).map((c) => [c.name, c]));
+  const usual = Object.fromEntries(commandList().map((c) => [c.name, c]));
+  assert.equal(open.panel.default_member_permissions, undefined);
+  for (const name of Object.keys(usual).filter((n) => n !== "panel")) {
+    assert.deepEqual(open[name], usual[name], `${name} unchanged`);
+  }
+});

@@ -38,3 +38,6 @@ COL_CHECKED = "Checked in"
 ORGANIZER_ROLE_IDS = "503782310064291851"
 # Roles that never count toward that, wherever they sit, such as Alumni Officer.
 ORGANIZER_IGNORE_ROLE_IDS = ""
+# TEMPORARY: "true" lets every member see and use /panel. Set back to "false" (or
+# delete the line) to make /panel officers-only again.
+PANEL_FOR_EVERYONE = "true"

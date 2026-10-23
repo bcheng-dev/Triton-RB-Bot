@@ -8,7 +8,7 @@ import {
   ensureAllGuilds, resetCommandChecks, guildRoles
 } from "./discord.js";
 import { Sheet } from "./google.js";
-import { COMMANDS } from "./commands.js";
+import { commandList } from "./commands.js";
 import {
   checkIn, amIIn, checkInFor, uncheck, attendance,
   parseEvents, applyEvents, addEvent, removeEvent, listEvents, mySignups
@@ -134,12 +134,15 @@ export default {
     const body = JSON.parse(raw);
     if (body.type === T.PING) return json({ type: R.PONG });
 
+    const panelForEveryone = env.PANEL_FOR_EVERYONE === "true";
+    const commands = commandList({ panelForEveryone });
+
     /* Any use of the bot quietly brings the slash commands up to date, in this server
        and in every other one it is in, so a server it just joined or a newly added
        command needs nobody to do anything. Runs after the reply; never slows it down. */
     if (body.guild_id) {
       ctx.waitUntil(
-        ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
+        ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, commands)
           .catch((err) => console.error("command check failed", err))
       );
     }
@@ -196,7 +199,9 @@ export default {
       if (name === "rb-bot") {
         return json({ type: R.MESSAGE, data: { ...panelMessage(cfg.opensMinutes, links), flags: EPHEMERAL } });
       }
-      const organizerOnly = ["panel", "event-add", "event-remove", "checkin-for", "uncheckin", "attendance"];
+      // PANEL_FOR_EVERYONE opens /panel to every member; the rest stay with officers.
+      const organizerOnly = ["event-add", "event-remove", "checkin-for", "uncheckin", "attendance"]
+        .concat(panelForEveryone ? [] : ["panel"]);
       if (organizerOnly.includes(name) && !(await isOrganizer(body, env))) return reply("Officers only.");
 
       if (name === "checkin") return background(() => checkIn(sheet, cfg, who(body)));
@@ -212,7 +217,7 @@ export default {
           try {
             resetCommandChecks();
             const results = Object.values(
-              await ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, COMMANDS)
+              await ensureAllGuilds(env.DISCORD_BOT_TOKEN, env.DISCORD_APP_ID, body.guild_id, commands)
             );
             const updated = results.filter((r) => r === "synced").length;
             const failed = results.filter((r) => r === "failed").length;

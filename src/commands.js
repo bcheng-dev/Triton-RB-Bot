@@ -10,13 +10,17 @@ const who = [
   { name: "name", description: "Their name exactly as it is on the signup sheet", type: STRING }
 ];
 
-export const COMMANDS = [
+/** The command list. With panelForEveryone (the PANEL_FOR_EVERYONE setting), /panel is
+    shown to every member instead of only to those with Manage Events. */
+export const commandList = ({ panelForEveryone = false } = {}) => [
   { name: "rb-bot", description: "Show the check-in panel with all its buttons (only you see it)", type: 1 },
   { name: "checkin", description: "Check yourself in for the Riftbound event", type: 1 },
   { name: "events", description: "Upcoming events, when check-in opens, and sign-up links", type: 1 },
   { name: "mysignups", description: "Which upcoming events you are signed up for", type: 1 },
-  { name: "panel", description: "Post the check-in panel in this channel for everyone (officers)", type: 1,
-    default_member_permissions: MANAGE_EVENTS },
+  panelForEveryone
+    ? { name: "panel", description: "Post the check-in panel in this channel for everyone", type: 1 }
+    : { name: "panel", description: "Post the check-in panel in this channel for everyone (officers)", type: 1,
+        default_member_permissions: MANAGE_EVENTS },
   { name: "event-add", description: "Schedule an event, or edit the one on that date (organizers)", type: 1,
     default_member_permissions: MANAGE_EVENTS,
     options: [
@@ -38,3 +42,6 @@ export const COMMANDS = [
   { name: "attendance", description: "Who is checked in for the event (organizers)", type: 1,
     default_member_permissions: MANAGE_EVENTS }
 ];
+
+/** The usual list, /panel for officers. register.js sends this one. */
+export const COMMANDS = commandList();

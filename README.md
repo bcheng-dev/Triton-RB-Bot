@@ -17,7 +17,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | | |
 |---|---|
 | `/rb-bot` | anyone: the panel, with a guide to every button, as a private reply |
-| `/panel` | officers: post that panel in the channel for everyone, to pin; also refreshes every server's commands right away |
+| `/panel` | officers: post that panel in the channel for everyone, to pin; also refreshes every server's commands right away. `PANEL_FOR_EVERYONE = "true"` opens it to every member |
 | **Check in** button | the normal path, one click, private reply |
 | **Am I in?** button | whether they are already down for tonight |
 | **Events** button, `/events` | upcoming events, when check-in opens, the form link |
@@ -238,7 +238,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 85 tests, no network needed
+npm test          # 88 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

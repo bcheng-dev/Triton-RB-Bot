@@ -112,3 +112,17 @@ test("/panel from an officer posts the panel publicly and refreshes commands", a
   const reply = globalThis.fetch.mock.calls.find((c) => String(c.arguments[0]).includes("/messages/@original"));
   assert.match(JSON.parse(reply.arguments[1].body).content, /Panel posted/);
 });
+
+test("with PANEL_FOR_EVERYONE on, a regular member can post the panel", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, asMember(["member"]), { ORGANIZER_ROLE_IDS: "officer-role", PANEL_FOR_EVERYONE: "true" });
+  assert.equal(json.type, 5, "accepted, not refused");
+  assert.ok(globalThis.fetch.mock.calls.some((c) => String(c.arguments[0]).includes("/channels/chan9/messages")), "panel posted");
+});
+
+test("PANEL_FOR_EVERYONE opens only /panel; other officer commands stay locked", async (t) => {
+  resetCommandChecks();
+  const attendance = { ...asMember(["member"]), data: { name: "attendance" } };
+  const { json } = await discordSends(t, attendance, { ORGANIZER_ROLE_IDS: "officer-role", PANEL_FOR_EVERYONE: "true" });
+  assert.match(json.data.content, /Officers only/);
+});
