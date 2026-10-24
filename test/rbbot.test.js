@@ -126,3 +126,30 @@ test("PANEL_FOR_EVERYONE opens only /panel; other officer commands stay locked",
   const { json } = await discordSends(t, attendance, { ORGANIZER_ROLE_IDS: "officer-role", PANEL_FOR_EVERYONE: "true" });
   assert.match(json.data.content, /Officers only/);
 });
+
+test("BOT_PAUSED answers every command and button with the paused note, and does nothing else", async (t) => {
+  for (const body of [
+    { ...asMember(["member"]), data: { name: "checkin" } },
+    { ...asMember([], String(1n << 3n)), data: { name: "panel" } },        // even an admin
+    { ...asMember(["member"]), type: 3, data: { custom_id: "rb:checkin" } }  // a button
+  ]) {
+    resetCommandChecks();
+    const { json, calls } = await discordSends(t, body, { BOT_PAUSED: "true" });
+    assert.equal(json.type, 4);
+    assert.equal(json.data.flags, 64, "only the person who clicked sees it");
+    assert.match(json.data.content, /paused/);
+    assert.deepEqual(calls, [], "no sheet, no posting, no command sync");
+    t.mock.reset();
+  }
+});
+
+test("while paused, Discord's endpoint check still passes", async (t) => {
+  const { json } = await discordSends(t, { type: 1 }, { BOT_PAUSED: "true" });
+  assert.deepEqual(json, { type: 1 });
+});
+
+test("BOT_PAUSED = false is normal service", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, { ...asMember(["member"]), data: { name: "rb-bot" } }, { BOT_PAUSED: "false" });
+  assert.equal(json.data.embeds[0].title, "TNN Bot");
+});

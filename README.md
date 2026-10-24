@@ -240,13 +240,17 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 90 tests, no network needed
+npm test          # 93 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 
 ---
 
 ## When it misbehaves
+
+**Taking the bot out of service for a while** — set `BOT_PAUSED = "true"` in
+`wrangler.toml` and push. Every button and command then gets a short private "paused"
+reply, and Discord's link to the bot stays verified. Set it back to `"false"` to resume.
 
 **Discord will not save the endpoint URL** — the Worker is not deployed, the URL is
 wrong, or `DISCORD_PUBLIC_KEY` does not match this application. `curl` the URL; a GET

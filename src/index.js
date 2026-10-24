@@ -134,6 +134,15 @@ export default {
     const body = JSON.parse(raw);
     if (body.type === T.PING) return json({ type: R.PONG });
 
+    /* BOT_PAUSED = "true" takes the bot out of service without breaking Discord's link
+       to it: the PING above still answers, so the endpoint stays verified, and every
+       click or command gets this one private reply. Nothing reads or writes the sheet. */
+    if (env.BOT_PAUSED === "true") {
+      return json({ type: R.MESSAGE, data: {
+        content: "TNN Bot is paused for now. Please check back later.", flags: EPHEMERAL
+      } });
+    }
+
     const panelForEveryone = env.PANEL_FOR_EVERYONE === "true";
     const commands = commandList({ panelForEveryone });
 

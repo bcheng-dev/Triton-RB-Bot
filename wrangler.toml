@@ -40,3 +40,6 @@ ORGANIZER_ROLE_IDS = "503782310064291851"
 ORGANIZER_IGNORE_ROLE_IDS = ""
 # "true" lets every member see and use /panel; "false" keeps it officers-only.
 PANEL_FOR_EVERYONE = "false"
+# "true" pauses the bot: every button and command gets a short "paused" reply and
+# nothing else happens. "false" is normal service.
+BOT_PAUSED = "true"
