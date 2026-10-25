@@ -42,4 +42,4 @@ ORGANIZER_IGNORE_ROLE_IDS = ""
 PANEL_FOR_EVERYONE = "false"
 # "true" pauses the bot: every button and command gets a short "paused" reply and
 # nothing else happens. "false" is normal service.
-BOT_PAUSED = "true"
+BOT_PAUSED = "false"
