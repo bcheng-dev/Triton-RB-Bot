@@ -35,7 +35,7 @@ COL_CHECKED = "Checked in"
 # Who may use organizer commands: the Officer role's ID. That role and every role
 # ranked above it count; administrators and the owner always do. Comma separate one
 # ID per server if the bot is in several. Empty means Manage Events or Manage Server.
-ORGANIZER_ROLE_IDS = "503782310064291851"
+ORGANIZER_ROLE_IDS = "1563770017969995827"
 # Roles that never count toward that, wherever they sit, such as Alumni Officer.
 ORGANIZER_IGNORE_ROLE_IDS = ""
 # "true" lets every member see and use /panel; "false" keeps it officers-only.
