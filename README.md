@@ -32,6 +32,10 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | `/uncheckin` | organizers: undo a check-in. No options undoes your own, for testing |
 | `/attendance` | organizers: the current event's list |
 
+**Who can use the bot at all:** with `REQUIRED_ROLE_IDS` set, only members holding that
+role can use any command or button; everyone else gets a short private "only for officers"
+reply. Administrators always can. Leave it empty to open the bot to every member.
+
 Organizer commands are for **officers and above**: set `ORGANIZER_ROLE_IDS` to the
 Officer role's ID, and anyone with that role or any role ranked above it in **Server
 Settings > Roles** passes. Administrators and the server owner always pass. Roles
@@ -238,7 +242,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 90 tests, no network needed
+npm test          # 95 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

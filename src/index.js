@@ -58,6 +58,19 @@ const ADMINISTRATOR = 1n << 3n;
 const MANAGE_EVENTS = 1n << 33n;
 const MANAGE_GUILD = 1n << 5n;
 const idList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
+/** The bot-wide gate. With REQUIRED_ROLE_IDS set, only members holding one of those
+    roles may use the bot at all, commands and buttons alike. Rank does not count here,
+    only the role itself. Administrators still pass: they could give themselves the
+    role anyway, and it keeps the owner from being locked out. */
+export function hasRequiredRole(body, env) {
+  const required = idList(env.REQUIRED_ROLE_IDS);
+  if (!required.length) return true;
+  const perms = BigInt(body.member?.permissions || "0");
+  if ((perms & ADMINISTRATOR) !== 0n) return true;
+  const mine = body.member?.roles || [];
+  return required.some((id) => mine.includes(id));
+}
+
 export async function isOrganizer(body, env, loadRoles = guildRoles) {
   const perms = BigInt(body.member?.permissions || "0");
   if ((perms & ADMINISTRATOR) !== 0n) return true;
@@ -136,6 +149,12 @@ export default {
     if (env.BOT_PAUSED === "true") {
       return json({ type: R.MESSAGE, data: {
         content: "TNN Bot is paused for now. Please check back later.", flags: EPHEMERAL
+      } });
+    }
+
+    if (!hasRequiredRole(body, env)) {
+      return json({ type: R.MESSAGE, data: {
+        content: "TNN Bot is only for officers right now.", flags: EPHEMERAL
       } });
     }
 

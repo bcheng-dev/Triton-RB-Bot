@@ -153,3 +153,46 @@ test("BOT_PAUSED = false is normal service", async (t) => {
   const { json } = await discordSends(t, { ...asMember(["member"]), data: { name: "rb-bot" } }, { BOT_PAUSED: "false" });
   assert.equal(json.data.embeds[0].title, "TNN Bot");
 });
+
+/* ---------- REQUIRED_ROLE_IDS: the bot is only for one role ---------- */
+
+const LOCKED = { REQUIRED_ROLE_IDS: "officer-role" };
+
+test("without the required role, every command and button is refused, and nothing runs", async (t) => {
+  for (const body of [
+    { ...asMember(["member"]), data: { name: "rb-bot" } },
+    { ...asMember(["member"]), data: { name: "checkin" } },
+    { ...asMember(["member"]), type: 3, data: { custom_id: "rb:checkin" } },
+    { ...asMember(["president"]), data: { name: "rb-bot" } }   // a higher role without it
+  ]) {
+    resetCommandChecks();
+    const { json, calls } = await discordSends(t, body, LOCKED);
+    assert.match(json.data.content, /only for officers/);
+    assert.equal(json.data.flags, 64);
+    assert.deepEqual(calls, [], "no sheet, no posting, no command sync");
+    t.mock.reset();
+  }
+});
+
+test("holders of the required role use the bot as normal", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, { ...asMember(["officer-role"]), data: { name: "rb-bot" } }, LOCKED);
+  assert.equal(json.data.embeds[0].title, "TNN Bot");
+});
+
+test("administrators pass the required-role gate", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "rb-bot" } }, LOCKED);
+  assert.equal(json.data.embeds[0].title, "TNN Bot");
+});
+
+test("with REQUIRED_ROLE_IDS empty, the bot is open to every member", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, { ...asMember(["member"]), data: { name: "rb-bot" } }, { REQUIRED_ROLE_IDS: "" });
+  assert.equal(json.data.embeds[0].title, "TNN Bot");
+});
+
+test("while locked, Discord's endpoint check still passes", async (t) => {
+  const { json } = await discordSends(t, { type: 1 }, LOCKED);
+  assert.deepEqual(json, { type: 1 });
+});
