@@ -34,9 +34,15 @@ test("a managed role like Server Booster never counts, even above Officer", asyn
   assert.equal(await isOrganizer(as(["member", "booster"]), env, loadRoles), false);
 });
 
-test("administrators and the owner always pass, without a role lookup", async () => {
-  const never = async () => { throw new Error("must not look up roles"); };
-  assert.equal(await isOrganizer(as([], ADMIN), env, never), true);
+test("being an administrator is not enough, even in the home server", async () => {
+  assert.equal(await isOrganizer(as([], ADMIN), env, loadRoles), false);
+  assert.equal(await isOrganizer(as(["officer"], ADMIN), env, loadRoles), true, "with the role, fine");
+});
+
+test("administrators of another server, where the officer role does not exist, are refused", async () => {
+  const elsewhere = async () => [{ id: "g2", position: 0 }, { id: "their-officer", position: 5 }];
+  assert.equal(await isOrganizer(as([], ADMIN), env, elsewhere), false);
+  assert.equal(await isOrganizer(as(["their-officer"], ADMIN), env, elsewhere), false);
 });
 
 test("Manage Events alone is not enough once an officer role is set", async () => {

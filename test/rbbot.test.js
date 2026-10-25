@@ -7,7 +7,9 @@ import { COMMANDS } from "../src/commands.js";
 const toHex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 
 /** Send `body` to the Worker the way Discord does: signed with the app's key. */
-async function discordSends(t, body, envExtra = {}) {
+/** `roles` is the server's role list as Discord would return it; by default this is
+    the home server, where "officer-role" exists. */
+async function discordSends(t, body, envExtra = {}, roles = [{ id: "officer-role", position: 5 }]) {
   const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const raw = JSON.stringify(body);
   const ts = "1760000000";
@@ -20,7 +22,8 @@ async function discordSends(t, body, envExtra = {}) {
     ...envExtra
   };
   const background = [];
-  t.mock.method(globalThis, "fetch", async () => new Response("[]"));
+  t.mock.method(globalThis, "fetch", async (url) =>
+    new Response(String(url).endsWith("/roles") ? JSON.stringify(roles) : "[]"));
   t.mock.method(console, "error", () => {});
   const res = await worker.fetch(
     new Request("https://worker/", { method: "POST", body: raw, headers: { "x-signature-ed25519": sig, "x-signature-timestamp": ts } }),
@@ -100,8 +103,7 @@ test("/panel turns away anyone below Officer", async (t) => {
 
 test("/panel from an officer posts the panel publicly and refreshes commands", async (t) => {
   resetCommandChecks();
-  const ADMIN = String(1n << 3n);
-  const { json, calls } = await discordSends(t, asMember([], ADMIN), { ORGANIZER_ROLE_IDS: "officer-role" });
+  const { json, calls } = await discordSends(t, asMember(["officer-role"]), { ORGANIZER_ROLE_IDS: "officer-role" });
   assert.equal(json.type, 5, "acknowledged, finished in the background");
   const post = globalThis.fetch.mock.calls.find((c) => String(c.arguments[0]).includes("/channels/chan9/messages"));
   assert.ok(post, "panel posted in the channel");
@@ -180,10 +182,11 @@ test("holders of the required role use the bot as normal", async (t) => {
   assert.equal(json.data.embeds[0].title, "TNN Bot");
 });
 
-test("administrators pass the required-role gate", async (t) => {
+test("administrators without the required role are refused too", async (t) => {
   resetCommandChecks();
-  const { json } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "rb-bot" } }, LOCKED);
-  assert.equal(json.data.embeds[0].title, "TNN Bot");
+  const { json, calls } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "rb-bot" } }, LOCKED);
+  assert.match(json.data.content, /only for officers/);
+  assert.deepEqual(calls, []);
 });
 
 test("with REQUIRED_ROLE_IDS empty, the bot is open to every member", async (t) => {
@@ -195,4 +198,23 @@ test("with REQUIRED_ROLE_IDS empty, the bot is open to every member", async (t) 
 test("while locked, Discord's endpoint check still passes", async (t) => {
   const { json } = await discordSends(t, { type: 1 }, LOCKED);
   assert.deepEqual(json, { type: 1 });
+});
+
+test("in another server, even its administrators cannot use the bot", async (t) => {
+  const ADMIN = String(1n << 3n);
+  const otherServer = [{ id: "guild9", position: 0 }, { id: "their-officer", position: 5 }];
+  for (const name of ["rb-bot", "event-add", "panel"]) {
+    resetCommandChecks();
+    const { json } = await discordSends(t, { ...asMember(["their-officer"], ADMIN), data: { name } },
+      { REQUIRED_ROLE_IDS: "officer-role", ORGANIZER_ROLE_IDS: "officer-role" }, otherServer);
+    assert.match(json.data.content, /only for officers/, `/${name} refused`);
+    t.mock.reset();
+  }
+});
+
+test("without the bot-wide lock, other servers' admins still cannot use officer commands", async (t) => {
+  resetCommandChecks();
+  const { json } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "attendance" } },
+    { ORGANIZER_ROLE_IDS: "officer-role" }, [{ id: "guild9", position: 0 }]);
+  assert.match(json.data.content, /Officers only/);
 });

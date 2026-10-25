@@ -33,11 +33,11 @@ COL_DISCORD = "What is your Discord username?"
 COL_VERIFIED_ID = "Discord ID (verified)"
 COL_CHECKED = "Checked in"
 # Who may use organizer commands: the Officer role's ID. That role and every role
-# ranked above it count; administrators and the owner always do. Comma separate one
+# ranked above it count; being an administrator does not. Comma separate one
 # ID per server if the bot is in several. Empty means Manage Events or Manage Server.
 ORGANIZER_ROLE_IDS = "1563770017969995827"
 # Only members holding one of these roles may use the bot at all, commands and
-# buttons alike (administrators always can). Empty opens the bot to every member.
+# buttons alike; administrators need the role too. Empty opens the bot to every member.
 REQUIRED_ROLE_IDS = "1563770017969995827"
 # "true" lets every member see and use /panel; "false" keeps it officers-only.
 PANEL_FOR_EVERYONE = "false"

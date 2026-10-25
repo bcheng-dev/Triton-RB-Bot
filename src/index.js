@@ -45,48 +45,56 @@ export function cleanEnv(env) {
   return out;
 }
 
-/** Organizer gate.
+/* ---------- Who may use the bot ----------
 
-    Administrators always pass; Discord reports the server owner as having every
-    permission, so that covers the owner too. With ORGANIZER_ROLE_IDS set (the
-    Officer role; one ID per server when the bot is in several), a member passes
-    with that role or any role ranked above it, so President and the like count
-    without being listed. Roles Discord or other bots manage, such as Server Booster,
-    never count, wherever they sit. Without ORGANIZER_ROLE_IDS, Manage Events or
-    Manage Server is enough. */
+   Once a role is configured, holding it is the only way in. There is no
+   administrator's pass: in another server nobody can hold the role, so nobody there
+   gets in, its administrators included, and in the home server an administrator who
+   wants in gives themselves the role. Without any roles configured, the old open
+   behaviour applies. */
 const ADMINISTRATOR = 1n << 3n;
 const MANAGE_EVENTS = 1n << 33n;
 const MANAGE_GUILD = 1n << 5n;
 const idList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
+const isAdmin = (body) => (BigInt(body.member?.permissions || "0") & ADMINISTRATOR) !== 0n;
+
+/** This server's roles that count, i.e. not managed by Discord or a bot. */
+async function serverRoles(body, env, loadRoles) {
+  if (!body.guild_id) return [];
+  return (await loadRoles(env.DISCORD_BOT_TOKEN, body.guild_id)).filter((r) => !r.managed);
+}
+
 /** The bot-wide gate. With REQUIRED_ROLE_IDS set, only members holding one of those
-    roles may use the bot at all, commands and buttons alike. Rank does not count here,
-    only the role itself. Administrators still pass: they could give themselves the
-    role anyway, and it keeps the owner from being locked out. */
+    roles may use the bot at all, commands and buttons alike. Rank does not count, and
+    neither does being an administrator: only the role itself. */
 export function hasRequiredRole(body, env) {
   const required = idList(env.REQUIRED_ROLE_IDS);
   if (!required.length) return true;
-  const perms = BigInt(body.member?.permissions || "0");
-  if ((perms & ADMINISTRATOR) !== 0n) return true;
   const mine = body.member?.roles || [];
   return required.some((id) => mine.includes(id));
 }
 
+/** Organizer gate. With ORGANIZER_ROLE_IDS set (the Officer role; one ID per server
+    when the bot is in several), a member passes with that role or any role ranked
+    above it in a server where the role exists, so President and the like count
+    without being listed. Being an administrator is not enough on its own. Without
+    ORGANIZER_ROLE_IDS, Manage Events, Manage Server or Administrator is enough. */
 export async function isOrganizer(body, env, loadRoles = guildRoles) {
   const perms = BigInt(body.member?.permissions || "0");
-  if ((perms & ADMINISTRATOR) !== 0n) return true;
-
   const ids = idList(env.ORGANIZER_ROLE_IDS);
-  if (!ids.length) return (perms & MANAGE_EVENTS) !== 0n || (perms & MANAGE_GUILD) !== 0n;
+  if (!ids.length) {
+    return isAdmin(body) || (perms & MANAGE_EVENTS) !== 0n || (perms & MANAGE_GUILD) !== 0n;
+  }
 
   const mine = body.member?.roles || [];
   if (ids.some((id) => mine.includes(id))) return true;
-  if (!mine.length || !body.guild_id) return false;
+  if (!body.guild_id || !mine.length) return false;
 
   try {
-    const roles = (await loadRoles(env.DISCORD_BOT_TOKEN, body.guild_id)).filter((r) => !r.managed);
+    const roles = await serverRoles(body, env, loadRoles);
     const position = new Map(roles.map((r) => [r.id, r.position]));
     const floors = ids.filter((id) => position.has(id)).map((id) => position.get(id));
-    if (!floors.length) return false;   // no organizer role exists in this server
+    if (!floors.length) return false;   // not the home server: nobody gets in
     const floor = Math.min(...floors);
     return mine.some((id) => position.has(id) && position.get(id) >= floor);
   } catch (err) {
