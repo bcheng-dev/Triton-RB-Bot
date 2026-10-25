@@ -64,9 +64,10 @@ async function serverRoles(body, env, loadRoles) {
   return (await loadRoles(env.DISCORD_BOT_TOKEN, body.guild_id)).filter((r) => !r.managed);
 }
 
-/** The bot-wide gate. With REQUIRED_ROLE_IDS set, only members holding one of those
-    roles may use the bot at all, commands and buttons alike. Rank does not count, and
-    neither does being an administrator: only the role itself. */
+/** The slash-command gate. With REQUIRED_ROLE_IDS set, only members holding one of
+    those roles may use any slash command. Rank does not count, and neither does being
+    an administrator: only the role itself. Buttons are not gated: members use the
+    panel an officer has posted. */
 export function hasRequiredRole(body, env) {
   const required = idList(env.REQUIRED_ROLE_IDS);
   if (!required.length) return true;
@@ -160,9 +161,10 @@ export default {
       } });
     }
 
-    if (!hasRequiredRole(body, env)) {
+    if (body.type === T.COMMAND && !hasRequiredRole(body, env)) {
       return json({ type: R.MESSAGE, data: {
-        content: "TNN Bot is only for officers right now.", flags: EPHEMERAL
+        content: "Commands are for officers. Use the buttons on the pinned TNN Bot panel instead.",
+        flags: EPHEMERAL
       } });
     }
 

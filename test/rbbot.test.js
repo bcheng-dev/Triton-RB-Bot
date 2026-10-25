@@ -160,16 +160,16 @@ test("BOT_PAUSED = false is normal service", async (t) => {
 
 const LOCKED = { REQUIRED_ROLE_IDS: "officer-role" };
 
-test("without the required role, every command and button is refused, and nothing runs", async (t) => {
+test("without the required role, every slash command is refused, and nothing runs", async (t) => {
   for (const body of [
     { ...asMember(["member"]), data: { name: "rb-bot" } },
     { ...asMember(["member"]), data: { name: "checkin" } },
-    { ...asMember(["member"]), type: 3, data: { custom_id: "rb:checkin" } },
+    { ...asMember(["member"]), data: { name: "events" } },
     { ...asMember(["president"]), data: { name: "rb-bot" } }   // a higher role without it
   ]) {
     resetCommandChecks();
     const { json, calls } = await discordSends(t, body, LOCKED);
-    assert.match(json.data.content, /only for officers/);
+    assert.match(json.data.content, /Commands are for officers/);
     assert.equal(json.data.flags, 64);
     assert.deepEqual(calls, [], "no sheet, no posting, no command sync");
     t.mock.reset();
@@ -185,7 +185,7 @@ test("holders of the required role use the bot as normal", async (t) => {
 test("administrators without the required role are refused too", async (t) => {
   resetCommandChecks();
   const { json, calls } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "rb-bot" } }, LOCKED);
-  assert.match(json.data.content, /only for officers/);
+  assert.match(json.data.content, /Commands are for officers/);
   assert.deepEqual(calls, []);
 });
 
@@ -207,7 +207,7 @@ test("in another server, even its administrators cannot use the bot", async (t) 
     resetCommandChecks();
     const { json } = await discordSends(t, { ...asMember(["their-officer"], ADMIN), data: { name } },
       { REQUIRED_ROLE_IDS: "officer-role", ORGANIZER_ROLE_IDS: "officer-role" }, otherServer);
-    assert.match(json.data.content, /only for officers/, `/${name} refused`);
+    assert.match(json.data.content, /Commands are for officers/, `/${name} refused`);
     t.mock.reset();
   }
 });
@@ -217,4 +217,11 @@ test("without the bot-wide lock, other servers' admins still cannot use officer 
   const { json } = await discordSends(t, { ...asMember([], String(1n << 3n)), data: { name: "attendance" } },
     { ORGANIZER_ROLE_IDS: "officer-role" }, [{ id: "guild9", position: 0 }]);
   assert.match(json.data.content, /Officers only/);
+});
+
+test("buttons work for everyone, with or without the role", async (t) => {
+  resetCommandChecks();
+  const click = { ...asMember(["member"]), type: 3, data: { custom_id: "rb:events" } };
+  const { json } = await discordSends(t, click, LOCKED);
+  assert.equal(json.type, 5, "accepted and answered in the background, not refused");
 });
