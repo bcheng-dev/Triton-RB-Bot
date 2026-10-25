@@ -36,8 +36,6 @@ COL_CHECKED = "Checked in"
 # ranked above it count; administrators and the owner always do. Comma separate one
 # ID per server if the bot is in several. Empty means Manage Events or Manage Server.
 ORGANIZER_ROLE_IDS = "1563770017969995827"
-# Roles that never count toward that, wherever they sit, such as Alumni Officer.
-ORGANIZER_IGNORE_ROLE_IDS = ""
 # "true" lets every member see and use /panel; "false" keeps it officers-only.
 PANEL_FOR_EVERYONE = "false"
 # "true" pauses the bot: every button and command gets a short "paused" reply and

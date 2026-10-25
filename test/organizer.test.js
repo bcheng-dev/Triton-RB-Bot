@@ -9,8 +9,7 @@ const ROLES = [
   { id: "member", position: 1 },
   { id: "officer", position: 5 },
   { id: "booster", position: 7, managed: true },
-  { id: "president", position: 8 },
-  { id: "alumni-officer", position: 9 }
+  { id: "president", position: 8 }
 ];
 const loadRoles = async () => ROLES;
 const env = { ORGANIZER_ROLE_IDS: "officer", DISCORD_BOT_TOKEN: "t" };
@@ -61,19 +60,4 @@ test("if Discord will not list the roles, the answer is no", async (t) => {
   const failing = async () => { throw new Error("503"); };
   assert.equal(await isOrganizer(as(["president"]), env, failing), false);
   assert.equal(await isOrganizer(as(["officer"]), env, failing), true, "holding the role itself needs no lookup");
-});
-
-test("alumni officer roles are ignored, even ranked above Officer", async () => {
-  const withAlumni = { ...env, ORGANIZER_IGNORE_ROLE_IDS: "alumni-officer" };
-  assert.equal(await isOrganizer(as(["member", "alumni-officer"]), withAlumni, loadRoles), false);
-  assert.equal(await isOrganizer(as(["president"]), withAlumni, loadRoles), true, "other roles above still count");
-});
-
-test("a current officer who is also an alumnus still counts", async () => {
-  const withAlumni = { ...env, ORGANIZER_IGNORE_ROLE_IDS: "alumni-officer" };
-  assert.equal(await isOrganizer(as(["officer", "alumni-officer"]), withAlumni, loadRoles), true);
-});
-
-test("without the ignore list, a role above Officer counts, alumni or not", async () => {
-  assert.equal(await isOrganizer(as(["alumni-officer"]), env, loadRoles), true);
 });

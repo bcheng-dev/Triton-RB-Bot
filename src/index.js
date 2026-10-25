@@ -52,10 +52,8 @@ export function cleanEnv(env) {
     Officer role; one ID per server when the bot is in several), a member passes
     with that role or any role ranked above it, so President and the like count
     without being listed. Roles Discord or other bots manage, such as Server Booster,
-    never count, wherever they sit, and neither do roles in ORGANIZER_IGNORE_ROLE_IDS
-    (Alumni Officer and the like). Ignoring a role does not lock its holder out: a
-    current officer who is also an alumnus still passes on their Officer role.
-    Without ORGANIZER_ROLE_IDS, Manage Events or Manage Server is enough. */
+    never count, wherever they sit. Without ORGANIZER_ROLE_IDS, Manage Events or
+    Manage Server is enough. */
 const ADMINISTRATOR = 1n << 3n;
 const MANAGE_EVENTS = 1n << 33n;
 const MANAGE_GUILD = 1n << 5n;
@@ -71,10 +69,8 @@ export async function isOrganizer(body, env, loadRoles = guildRoles) {
   if (ids.some((id) => mine.includes(id))) return true;
   if (!mine.length || !body.guild_id) return false;
 
-  const ignored = new Set(idList(env.ORGANIZER_IGNORE_ROLE_IDS));
   try {
-    const roles = (await loadRoles(env.DISCORD_BOT_TOKEN, body.guild_id))
-      .filter((r) => !r.managed && !ignored.has(r.id));
+    const roles = (await loadRoles(env.DISCORD_BOT_TOKEN, body.guild_id)).filter((r) => !r.managed);
     const position = new Map(roles.map((r) => [r.id, r.position]));
     const floors = ids.filter((id) => position.has(id)).map((id) => position.get(id));
     if (!floors.length) return false;   // no organizer role exists in this server

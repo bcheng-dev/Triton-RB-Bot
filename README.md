@@ -35,9 +35,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 Organizer commands are for **officers and above**: set `ORGANIZER_ROLE_IDS` to the
 Officer role's ID, and anyone with that role or any role ranked above it in **Server
 Settings > Roles** passes. Administrators and the server owner always pass. Roles
-managed by Discord or bots, like Server Booster, never count, and neither do roles
-in `ORGANIZER_IGNORE_ROLE_IDS`, such as Alumni Officer. A current officer who is also an
-alumnus still passes on their Officer role. With the bot in several
+managed by Discord or bots, like Server Booster, never count. With the bot in several
 servers, list each server's Officer role, comma separated. Left empty, **Manage
 Events** or **Manage Server** is enough.
 
@@ -240,7 +238,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 93 tests, no network needed
+npm test          # 90 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 
