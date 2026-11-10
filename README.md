@@ -31,6 +31,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | `/checkin-for` | organizers: walk-ins and broken matches. Takes `member`, `name`, or both |
 | `/uncheckin` | organizers: undo a check-in. No options undoes your own, for testing |
 | `/attendance` | organizers: the current event's list |
+| `/signups` | organizers: who signed up for an event, with ✅ for who has checked in. Takes an optional `date`; blank means the current or next event |
 
 **Who can use slash commands:** with `REQUIRED_ROLE_IDS` set, only members holding that
 role can use any slash command, `/rb-bot` included; everyone else is pointed to the
@@ -244,7 +245,7 @@ tab, and **Run workflow** there redeploys without a code change.
 ## Local development
 
 ```bash
-npm test          # 99 tests, no network needed
+npm test          # 101 tests, no network needed
 npx wrangler dev  # needs a .dev.vars file with the same keys as the secrets above
 ```
 

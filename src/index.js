@@ -10,7 +10,7 @@ import {
 import { Sheet } from "./google.js";
 import { commandList } from "./commands.js";
 import {
-  checkIn, amIIn, checkInFor, uncheck, attendance,
+  checkIn, amIIn, checkInFor, uncheck, attendance, signups,
   parseEvents, applyEvents, addEvent, removeEvent, listEvents, mySignups
 } from "./logic.js";
 
@@ -234,7 +234,7 @@ export default {
         return json({ type: R.MESSAGE, data: { ...panelMessage(cfg.opensMinutes, links), flags: EPHEMERAL } });
       }
       // PANEL_FOR_EVERYONE opens /panel to every member; the rest stay with officers.
-      const organizerOnly = ["event-add", "event-remove", "checkin-for", "uncheckin", "attendance"]
+      const organizerOnly = ["event-add", "event-remove", "checkin-for", "uncheckin", "attendance", "signups"]
         .concat(panelForEveryone ? [] : ["panel"]);
       if (organizerOnly.includes(name) && !(await isOrganizer(body, env))) return reply("Officers only.");
 
@@ -286,6 +286,7 @@ export default {
       }
 
       if (name === "attendance") return background(() => attendance(sheet, cfg));
+      if (name === "signups") return background(() => signups(sheet, cfg, opts));
 
       return reply("Unknown command.");
     }

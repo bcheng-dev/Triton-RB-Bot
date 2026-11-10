@@ -41,7 +41,12 @@ export const commandList = ({ panelForEveryone = false } = {}) => [
   { name: "uncheckin", description: "Undo a check-in; leave both blank to undo your own (organizers)", type: 1,
     default_member_permissions: MANAGE_EVENTS, options: who },
   { name: "attendance", description: "Who is checked in for the event (organizers)", type: 1,
-    default_member_permissions: MANAGE_EVENTS }
+    default_member_permissions: MANAGE_EVENTS },
+  { name: "signups", description: "Who signed up for an event (organizers)", type: 1,
+    default_member_permissions: MANAGE_EVENTS,
+    options: [
+      { name: "date", description: "Event date, like 11/13. Leave blank for the current or next event", type: STRING }
+    ] }
 ];
 
 /** The usual list, /panel for officers. register.js sends this one. */

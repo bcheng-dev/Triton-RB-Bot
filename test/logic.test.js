@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkIn, amIIn, checkInFor, uncheck, attendance, eventDate } from "../src/logic.js";
+import { checkIn, amIIn, checkInFor, uncheck, attendance, signups, eventDate } from "../src/logic.js";
 
 const TODAY = eventDate("America/Los_Angeles");
 const cfg = {
@@ -220,4 +220,30 @@ test("attendance's signup count is for tonight's date only", async () => {
     { Name: "Luke", Discord: "b", [EVENT_COL]: "1/1/2099" }
   ], ["Name", "Discord", EVENT_COL]);
   assert.match(await attendance(s, dated), /1 signed up for this date/);
+});
+
+/* ---------- /signups ---------- */
+
+test("signups lists tonight's signups once each, ticking who checked in", async () => {
+  const s = stubSheet([
+    { Name: "Bea", Discord: "beab", [EVENT_COL]: md(TODAY) },
+    { Name: "Ari", Discord: "arimain", [EVENT_COL]: md(TODAY) },
+    { Name: "Ari", Discord: "arimain", [EVENT_COL]: md(TODAY) },
+    { Name: "Cy", Discord: "cy_", [EVENT_COL]: "1/1/2099" }
+  ], ["Name", "Discord", EVENT_COL]);
+  await checkIn(s, dated, { id: "1", username: "beab" });
+  const out = await signups(s, dated);
+  assert.match(out, /\*\*2 signed up for /);
+  assert.match(out, /1\. Ari · arimain\n2\. Bea · beab ✅/);
+  assert.doesNotMatch(out, /Cy/, "another date's signup is not listed");
+  assert.match(out, /1 of them checked in/);
+});
+
+test("signups for another date, and a date nobody picked", async () => {
+  const s = stubSheet([{ Name: "Cy", Discord: "cy_", [EVENT_COL]: "1/1/2099" }], ["Name", "Discord", EVENT_COL]);
+  const out = await signups(s, dated, { date: "1/1/2099" });
+  assert.match(out, /1 signed up for .*not on the schedule/);
+  assert.match(out, /Cy · cy\\_/, "markdown in handles is escaped");
+  assert.match(await signups(s, dated, { date: "2/2/2099" }), /Nobody has signed up/);
+  assert.match(await signups(s, dated, { date: "someday" }), /could not read the date/);
 });

@@ -401,6 +401,67 @@ export async function attendance(sheet, cfg, now = new Date()) {
     `\n\n${rows.length} signed up for this date.`;
 }
 
+/** Who signed up for an event, for organizers: the event on `date`, else the current
+    one (as /attendance picks it). Duplicate form submissions are listed once, and a
+    ✅ marks who has checked in. */
+export async function signups(sheet, cfg, { date } = {}, now = new Date()) {
+  let d, x;
+  if (date) {
+    d = parseEventDate(date, cfg.tz, now);
+    if (!d) return `I could not read the date "${date}". Use something like \`10/23\` or \`2026-10-23\`.`;
+    const ev = (cfg.events || []).find((e) => e.date === d);
+    x = ev ? timed(ev, cfg) : null;
+  } else {
+    x = currentEvent(cfg, now);
+    if (!x) return "No events are scheduled. Add one with `/event-add`, or give `/signups` a date.";
+    d = x.ev.date;
+  }
+
+  const previousTab = cfg.signupTab;
+  cfg.signupTab = x?.ev.tab || cfg.defaultTab;
+  let header, all;
+  try {
+    ({ header, rows: all } = await sheet.readSignups());
+  } finally {
+    cfg.signupTab = previousTab;
+  }
+  const { rows, byDate } = rowsFor(header, all, cfg, d, now);
+
+  await sheet.ensureAttendanceTab();
+  const inLines = await sheet.checkinsFor(d);
+  const esc = (v) => String(v ?? "").trim().replace(/([\[\]*_~`|\\>])/g, "\\$1");
+  const seen = new Set();
+  const people = [];
+  for (const r of rows) {
+    const name = String(r[cfg.colName] ?? "").trim();
+    const handle = String(r[cfg.colDiscord] ?? "").trim();
+    const key = `${name.toLowerCase()}|${handle.toLowerCase()}`;
+    if (!name && !handle) continue;
+    if (seen.has(key)) {
+      if (inLines.has(String(r._line))) people.find((p) => p.key === key).checked = true;
+      continue;
+    }
+    seen.add(key);
+    people.push({ key, name, handle, checked: inLines.has(String(r._line)) });
+  }
+  people.sort((a, b) => (a.name || a.handle).localeCompare(b.name || b.handle, "en", { sensitivity: "base" }));
+
+  const title = x ? describe(x).when : `${fmtDay(wallAt(d, 0))} (not on the schedule)`;
+  const loc = x && linkFor(x.ev) ? `\n${linkFor(x.ev)}` : "";
+  if (!people.length) return `**Nobody has signed up for ${title} yet.**${loc}`;
+
+  const checked = people.filter((p) => p.checked).length;
+  let body = "";
+  for (const [k, p] of people.entries()) {
+    const line = `${k + 1}. ${esc(p.name) || "(no name)"}${p.handle ? ` · ${esc(p.handle)}` : ""}${p.checked ? " ✅" : ""}\n`;
+    if (body.length + line.length > 1600) { body += `…and ${people.length - k} more\n`; break; }
+    body += line;
+  }
+  return `**${people.length} signed up for ${title}**${loc}\n${body}\n` +
+    `${checked} of them checked in.` +
+    (byDate ? "" : `\nHeads up: that signup tab has no event-date column, so every signup on it is listed.`);
+}
+
 /* ---------- Managing the schedule ---------- */
 
 /** Add an event, or edit the one already on that date. */
