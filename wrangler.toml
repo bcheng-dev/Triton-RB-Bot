@@ -12,12 +12,12 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 TIMEZONE = "America/Los_Angeles"
 # The signup form's response tab. One form serves every event.
-SIGNUP_TAB = "TNN Signups"
+SIGNUP_TAB = "TRN Signups"
 # The form question where people pick their event date. Signups are matched to the
 # event by the date in this answer. Several headers, split by |, are all checked.
-COL_EVENT = "Which Event are you signing up for?|Which event(date) are you signing up for?"
+COL_EVENT = "Which event are you signing up for?|Which Event are you signing up for?|Which event(date) are you signing up for?"
 # What the panel's Sign up button and the bot's replies link to.
-SIGNUP_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeCkISw6Yq8_w5BTWjmZblm2OuOOwmpe2ZOk0k6xAop_omvRQ/viewform"
+SIGNUP_FORM_URL = "https://forms.gle/9BzLFsZWjzffJP4WA"
 # What the panel's Feedback button opens.
 FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSezV251wrUoGkgA849IctE0xLvoyfxPUApRPx1vWSe1jjKwdQ/viewform"
 # What the panel's Rankings button opens.
@@ -30,7 +30,7 @@ ATTENDANCE_TAB = "Check-in Log"
 EVENTS_TAB = "Events"
 CHECKIN_OPENS_MINUTES = "30"
 # Header text as the sheet has it, minus leading/trailing spaces (the bot trims them).
-COL_NAME = "What is your full name?"
+COL_NAME = "What is your FULL NAME?"
 COL_DISCORD = "What is your Discord username?"
 COL_VERIFIED_ID = "Discord ID (verified)"
 COL_CHECKED = "Checked in"
