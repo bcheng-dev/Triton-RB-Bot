@@ -32,7 +32,7 @@ export async function verify(request, body, publicKey) {
 }
 
 export const T = { PING: 1, COMMAND: 2, COMPONENT: 3 };
-export const R = { PONG: 1, MESSAGE: 4, DEFER: 5 };
+export const R = { PONG: 1, MESSAGE: 4, DEFER: 5, DEFER_UPDATE: 6, UPDATE: 7 };
 export const EPHEMERAL = 64;
 
 export const json = (obj, status = 200) =>
@@ -42,11 +42,16 @@ export const json = (obj, status = 200) =>
     answer can take as long as it needs and is edited in afterwards. */
 export const defer = () => json({ type: R.DEFER, data: { flags: EPHEMERAL } });
 
-/** Replace that placeholder with the real answer. */
-export async function followUp(appId, token, content) {
+/** The same, for a button press that edits the message it sits on in place. */
+export const deferUpdate = () => json({ type: R.DEFER_UPDATE });
+
+/** Replace that placeholder with the real answer: text, or a message with embeds and
+    buttons. Text alone clears any buttons the message had. */
+export async function followUp(appId, token, answer) {
+  const msg = typeof answer === "string" ? { content: answer, embeds: [], components: [] } : answer;
   const res = await fetch(
     `https://discord.com/api/v10/webhooks/${appId}/${token}/messages/@original`,
-    { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ content }) }
+    { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(msg) }
   );
   if (!res.ok) console.error("followUp failed", res.status, await res.text());
 }
@@ -84,6 +89,8 @@ function panelButtons(opensMinutes, { signupUrl, feedbackUrl, rankingsUrl } = {}
       help: "shows upcoming events, their times, where they are, and when check-in opens." },
     { emoji: "📋", label: "My signups", style: 2, id: "rb:mine",
       help: "shows every upcoming event with ✅ if you're signed up and ❌ if not." },
+    { emoji: "🛒", label: "Nexus Shop", style: 1, id: "rb:shop",
+      help: "shows your Nexus Points and what you can redeem them for." },
     { emoji: "📝", label: "Sign up", url: signupUrl,
       help: "opens the signup form. Pick the event date you're coming to." },
     { emoji: "💬", label: "Feedback", url: feedbackUrl,

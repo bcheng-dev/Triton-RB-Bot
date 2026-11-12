@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCsv, ledgerRows, balanceFor, myNexus } from "../src/nexus.js";
+import { parseCsv, ledgerRows, balanceFor, myNexus, shopView, shopConfirm, shopRedeem, isTheirs } from "../src/nexus.js";
 
 const cfg = { colName: "Name", colDiscord: "Discord", colVerifiedId: "Discord ID (verified)",
               mmrSheetId: "sheet", rankingsUrl: "https://example.com/" };
@@ -46,4 +46,97 @@ test("/nexus before any points exist", async () => {
   const out = await myNexus(sheet([{ Name: "Ann", Discord: "ann" }]), cfg, { id: "1", username: "ann" },
     async () => '"Player","Rating"\n"Ann","1000"');
   assert.match(out, /No Nexus Points have been handed out yet/);
+});
+
+/* ---------- Discord IDs on the ledger, and the shop ---------- */
+
+const LEDGER_HEAD = ["Date", "Player", "Points", "Reason", "Source", "Discord ID"];
+/** The Triton MMR sheet through the API, in memory. */
+function fakeMmr({ ledger = [], shop } = {}) {
+  const tabs = { "Nexus Ledger": [LEDGER_HEAD, ...ledger] };
+  if (shop) tabs["Nexus Shop"] = [["Item", "Cost", "Description"], ...shop];
+  return {
+    tabs, appended: [],
+    async readTab(tab) {
+      if (!tabs[tab]) throw new Error(`sheets 400: Unable to parse range: '${tab}'`);
+      const [header, ...body] = tabs[tab];
+      return { header, rows: body.map((r, i) => ({ _line: i + 2, ...Object.fromEntries(header.map((h, c) => [h, r[c] ?? ""])) })) };
+    },
+    async ensureTab(tab) { tabs[tab] = tabs[tab] || []; },
+    async putValues(range, values) { tabs[/'(.+)'/.exec(range)[1]] = values; },
+    async appendRow(tab, row) { this.appended.push(row); tabs[tab].push(row); }
+  };
+}
+const brian = { id: "303203396788289537", username: "penguinstacy" };
+const noSignups = sheet([]);
+
+test("a ledger row's Discord ID can be an account ID or a username", () => {
+  assert.ok(isTheirs("303203396788289537", brian));
+  assert.ok(isTheirs("@PenguinStacy", brian));
+  assert.ok(!isTheirs("someoneelse", brian));
+  assert.ok(!isTheirs("", brian));
+});
+
+test("/nexus finds points by the Discord ID column with no signup at all", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]] });
+  const out = await myNexus(noSignups, cfg, brian, undefined, mmr);
+  assert.match(out, /test: 5 Nexus Points/);
+});
+
+test("a name match does not take a row whose Discord ID is somebody else's", async () => {
+  const mmr = fakeMmr({ ledger: [
+    ["11/12", "Ann Lee", "4", "", "", ""],
+    ["11/12", "Ann Lee", "9", "", "", "otherann"]
+  ] });
+  const out = await myNexus(sheet([{ Name: "Ann Lee", Discord: "annl" }]), cfg, { id: "7", username: "annl" }, undefined, mmr);
+  assert.match(out, /Ann Lee: 4 Nexus Points/);
+});
+
+test("the shop is made with an example item the first time, and shows the balance", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]] });
+  const view = await shopView(noSignups, mmr, cfg, brian);
+  assert.deepEqual(mmr.tabs["Nexus Shop"][0], ["Item", "Cost", "Description"]);
+  assert.match(view.embeds[0].description, /you have \*\*5 Nexus Points\*\*/);
+  const btn = view.components[0].components[0];
+  assert.equal(btn.custom_id, "rb:buy:Booster pack");
+  assert.equal(btn.disabled, false);
+});
+
+test("items you cannot afford are greyed out", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]], shop: [["Playmat", "40", ""], ["Pack", "5", ""]] });
+  const [mat, pack] = (await shopView(noSignups, mmr, cfg, brian)).components[0].components;
+  assert.equal(mat.disabled, true);
+  assert.equal(pack.disabled, false);
+});
+
+test("redeeming asks first, then writes one negative ledger row, and only once", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]], shop: [["Pack", "5", "A pack"]] });
+  const ask = await shopConfirm(noSignups, mmr, cfg, brian, "rb:buy:Pack");
+  assert.match(ask.embeds[0].description, /Spend \*\*5 Nexus Points\*\* of your \*\*5\*\* on \*\*Pack\*\*/);
+  assert.equal(ask.components[0].components[0].custom_id, "rb:ok:Pack");
+  assert.equal(mmr.appended.length, 0, "nothing is spent before Confirm");
+
+  const done = await shopRedeem(noSignups, mmr, { ...cfg, tz: "America/Los_Angeles" }, brian, "rb:ok:Pack", "msg1");
+  assert.match(done.embeds[0].description, /Redeemed \*\*Pack\*\* for 5 Nexus Points[\s\S]*0 Nexus Points\*\* left/);
+  const row = mmr.appended[0];
+  assert.deepEqual(row.slice(1), ["test", "-5", "Redeemed: Pack", "Nexus Shop #msg1", brian.id]);
+
+  assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg1"), /Already redeemed/);
+  assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg2"), /you have 0 Nexus Points\. Nothing was spent/);
+  assert.equal(mmr.appended.length, 1);
+});
+
+test("without edit access the shop shows points but will not redeem", async () => {
+  const csv = (id, tab) => tab === "Nexus Shop"
+    ? '"Item","Cost","Description"\n"Pack","5",""'
+    : '"Date","Player","Points","Reason","Source","Discord ID"\n"11/12","test","5","","","penguinstacy"';
+  const forbidden = { async readTab() { throw new Error("SHEET_FORBIDDEN"); } };
+  const view = await shopView(noSignups, forbidden, cfg, brian, csv);
+  assert.match(view.embeds[0].description, /5 Nexus Points/);
+  assert.match(await shopRedeem(noSignups, forbidden, cfg, brian, "rb:ok:Pack", "m", csv), /share the Triton MMR sheet/);
+});
+
+test("somebody the bot cannot place gets no shop", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]] });
+  assert.match(await shopView(noSignups, mmr, cfg, { id: "9", username: "stranger" }), /could not find a signup/);
 });

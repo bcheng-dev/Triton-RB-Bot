@@ -4,7 +4,7 @@
    this answers, and the Worker goes away again. That is what makes it always
    available on a free plan: there is no process to keep alive and nothing to sleep. */
 import {
-  verify, T, R, EPHEMERAL, json, defer, followUp, panelMessage, postPanel,
+  verify, T, R, EPHEMERAL, json, defer, deferUpdate, followUp, panelMessage, postPanel,
   ensureAllGuilds, resetCommandChecks, guildRoles
 } from "./discord.js";
 import { Sheet } from "./google.js";
@@ -13,7 +13,7 @@ import {
   checkIn, amIIn, checkInFor, uncheck, attendance, signups,
   parseEvents, applyEvents, addEvent, removeEvent, listEvents, mySignups
 } from "./logic.js";
-import { myNexus } from "./nexus.js";
+import { myNexus, shopView, shopConfirm, shopRedeem } from "./nexus.js";
 
 function config(env) {
   const signupTab = env.SIGNUP_TAB || "Form Responses 1";
@@ -199,6 +199,8 @@ export default {
       return reply("The bot's Google credentials are missing or incomplete. An organizer needs to re-run `wrangler secret put GOOGLE_CREDENTIALS` with the whole service account JSON.");
     }
     const sheet = new Sheet(creds, env.SHEET_ID, cfg);
+    // The Triton MMR sheet, for Nexus Points and the shop.
+    const mmr = cfg.mmrSheetId ? new Sheet(creds, cfg.mmrSheetId, cfg) : null;
 
     /* Work slower than Discord's three second deadline: acknowledge now, finish in
        the background, and edit the real answer in when it is ready. */
@@ -209,6 +211,19 @@ export default {
           .catch((err) => followUp(env.DISCORD_APP_ID, body.token, explain(err)))
       );
       return defer();
+    };
+
+    /* The same, for a button that edits the message it is on (the shop's steps). */
+    const inPlace = (work) => {
+      ctx.waitUntil(
+        (async () => {
+          applyEvents(cfg, parseEvents(await sheet.readEvents(), cfg));
+          return work();
+        })()
+          .then((answer) => followUp(env.DISCORD_APP_ID, body.token, answer))
+          .catch((err) => followUp(env.DISCORD_APP_ID, body.token, explain(err)))
+      );
+      return deferUpdate();
     };
 
     /* Most of what follows touches the sheet. The schedule is read first, because
@@ -224,6 +239,14 @@ export default {
       if (id === "rb:status")  return background(() => amIIn(sheet, cfg, who(body)));
       if (id === "rb:events")  return background(async () => listEvents(cfg));
       if (id === "rb:mine")    return background(() => mySignups(sheet, cfg, who(body)));
+      // The Nexus Shop: the panel button opens it privately; its own buttons then
+      // turn that one message into the confirm step and the receipt.
+      if (id === "rb:shop")    return background(() => shopView(sheet, mmr, cfg, who(body)));
+      if (id?.startsWith("rb:buy:")) return inPlace(() => shopConfirm(sheet, mmr, cfg, who(body), id));
+      if (id?.startsWith("rb:ok:"))  return inPlace(() => shopRedeem(sheet, mmr, cfg, who(body), id, body.message?.id || body.id));
+      if (id === "rb:no") {
+        return json({ type: R.UPDATE, data: { content: "Cancelled. Nothing was spent.", embeds: [], components: [] } });
+      }
       return reply("I do not know that button.");
     }
 
@@ -244,7 +267,7 @@ export default {
       if (name === "checkin") return background(() => checkIn(sheet, cfg, who(body)));
       if (name === "events") return background(async () => listEvents(cfg));
       if (name === "mysignups") return background(() => mySignups(sheet, cfg, who(body)));
-      if (name === "nexus") return background(() => myNexus(sheet, cfg, who(body)));
+      if (name === "nexus") return background(() => myNexus(sheet, cfg, who(body), undefined, mmr));
 
       // Officers: put the panel up in this channel for everyone, and bring every
       // server's commands up to date now rather than on the next ten-minute check.

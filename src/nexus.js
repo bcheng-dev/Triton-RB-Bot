@@ -1,12 +1,20 @@
 /* Nexus Points: the club currency, kept on the Nexus Ledger tab of the Triton MMR
-   sheet (one row per award or redemption, so a balance is the sum of a player's
-   rows). That sheet is shared as "anyone with the link can view", so it is read
-   through Google's public CSV export and needs no service account access. */
-import { findRow, normName } from "./match.js";
+   sheet, one row per award or redemption, so a balance is the sum of a player's rows.
+   The Nexus Shop tab of the same sheet lists what points can be spent on.
 
-/** The ledger as CSV. Google answers a missing tab with the first one, so the
-    caller checks the header before trusting it. */
-export async function fetchLedger(sheetId, tab = "Nexus Ledger") {
+   With the sheet shared with the bot's service account as an Editor, both tabs are
+   read through the Sheets API (always current) and a redemption is written to the
+   ledger as a negative row. Without that, the bot can still show balances through
+   the sheet's public CSV export, but cannot redeem anything. */
+import { findRow, normName, normHandle, memberKeys } from "./match.js";
+import { eventDate } from "./logic.js";
+
+export const LEDGER_TAB = "Nexus Ledger";
+export const SHOP_TAB = "Nexus Shop";
+
+/** A tab as CSV. Google answers a missing tab with the first one, so the caller
+    checks the header before trusting it. */
+export async function fetchLedger(sheetId, tab = LEDGER_TAB) {
   const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}` +
     `/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
   const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
@@ -35,47 +43,233 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((v) => v.trim() !== ""));
 }
 
-/** Ledger rows as objects, or null when the CSV is not the ledger. */
-export function ledgerRows(csv) {
+/** CSV text → { header, rows as objects keyed by header }. */
+function csvTable(csv) {
   const [head, ...body] = parseCsv(csv);
-  if (!head) return [];
-  const at = (name) => head.findIndex((h) => h.trim().toLowerCase() === name);
-  const iDate = at("date"), iPlayer = at("player"), iPoints = at("points"), iReason = at("reason");
-  if (iPlayer < 0 || iPoints < 0 || at("rating") >= 0) return null;
-  return body.map((r) => ({
-    date: (r[iDate] || "").trim(), player: (r[iPlayer] || "").trim(),
-    points: Number(r[iPoints]) || 0, reason: (r[iReason] || "").trim()
-  }));
+  if (!head) return { header: [], rows: [] };
+  const header = head.map((h) => h.trim());
+  return { header, rows: body.map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""]))) };
 }
 
-/** A player's balance and their latest entries. A balance never goes below zero. */
+/** A cell by its column name, ignoring case and spacing. */
+const cell = (obj, name) => {
+  const k = Object.keys(obj).find((x) => x.trim().toLowerCase() === name);
+  return k === undefined ? "" : String(obj[k] ?? "").trim();
+};
+const has = (header, name) => header.some((h) => h.trim().toLowerCase() === name);
+
+const entry = (o) => ({
+  date: cell(o, "date"), player: cell(o, "player"), points: Number(cell(o, "points")) || 0,
+  reason: cell(o, "reason"), source: cell(o, "source"), discordId: cell(o, "discord id")
+});
+
+/** Ledger rows from CSV, or null when the CSV is not the ledger. */
+export function ledgerRows(csv) {
+  const { header, rows } = csvTable(csv);
+  if (!header.length) return [];
+  if (!has(header, "player") || !has(header, "points") || has(header, "rating")) return null;
+  return rows.map(entry);
+}
+
+/** A player's balance by name, and their latest entries. Never below zero. */
 export function balanceFor(rows, name) {
   const key = normName(name);
-  const mine = rows.filter((r) => normName(r.player) === key);
+  return summarize(rows.filter((r) => normName(r.player) === key));
+}
+
+function summarize(mine) {
   const total = Math.round(mine.reduce((a, r) => a + r.points, 0) * 10) / 10;
   return { balance: Math.max(0, total), entries: mine.slice(-5).reverse() };
 }
 
-const signed = (n) => (n > 0 ? `+${n}` : String(n));
-
-/** /nexus: the caller's balance. They are found on the signup sheet the same way
-    check-in finds them (account ID, or an unambiguous Discord username, never a
-    typed name), and that row's name is what the ledger is keyed on. */
-export async function myNexus(sheet, cfg, who, getLedger = fetchLedger) {
-  if (!cfg.mmrSheetId) return "Nexus Points are not set up on this bot yet (MMR_SHEET_ID is missing).";
-  const { rows: signups } = await sheet.readSignups();
-  const cols = { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId };
-  const hit = findRow(signups, who, cols);
-  if (hit.status !== "matched") {
-    return `I could not find a signup under your Discord username **${who.username}**, ` +
-      "so I do not know which name your Nexus Points are under. Sign up for an event with that username first.";
+/** The ledger, read through the API when the bot has access, else the public CSV.
+    { header, rows, writable }, or null when there is no ledger yet. */
+export async function loadLedger(mmr, sheetId, getCsv = fetchLedger) {
+  if (mmr) {
+    try {
+      const { header, rows } = await mmr.readTab(LEDGER_TAB);
+      if (!has(header, "player") || !has(header, "points")) return null;
+      return { header, rows: rows.map(entry), writable: true };
+    } catch (err) {
+      if (/Unable to parse range/i.test(String(err.message))) return null;
+      if (String(err.message) !== "SHEET_FORBIDDEN") throw err;
+    }
   }
-  const name = String(hit.row[cfg.colName] || "").trim();
-  const rows = ledgerRows(await getLedger(cfg.mmrSheetId));
-  if (rows === null) return "No Nexus Points have been handed out yet. They start with the next event.";
-  const { balance, entries } = balanceFor(rows, name);
-  const lines = entries.map((e) => `${signed(e.points)} · ${e.reason || "Nexus Points"}${e.date ? ` (${e.date})` : ""}`);
-  return `**${name}: ${balance} Nexus Point${balance === 1 ? "" : "s"}**` +
+  const rows = ledgerRows(await getCsv(sheetId, LEDGER_TAB));
+  return rows === null ? null : { header: [], rows, writable: false };
+}
+
+/** Does a ledger row's Discord ID cell point at this member? It may hold their
+    account ID or their Discord username. */
+export function isTheirs(value, who) {
+  const h = normHandle(value);
+  if (h.kind === "empty") return false;
+  if (h.kind === "id") return h.value === who.id;
+  return memberKeys(who).has(h.value);
+}
+
+/** Which ledger rows are this member's. Rows with their Discord ID count outright.
+    Rows under the name from their signup (found by account ID or Discord username,
+    as check-in does, never by a typed name) count too, unless that row's Discord ID
+    points at somebody else. */
+export async function findPlayer(sheet, cfg, who, ledgerRowsList) {
+  const byId = ledgerRowsList.filter((r) => isTheirs(r.discordId, who));
+  let name = "";
+  const { rows: signups } = await sheet.readSignups();
+  const hit = findRow(signups, who, { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId });
+  if (hit.status === "matched") name = String(hit.row[cfg.colName] || "").trim();
+  const key = normName(name);
+  const mine = ledgerRowsList.filter((r) => byId.includes(r) || (key && !r.discordId && normName(r.player) === key));
+  return {
+    found: Boolean(name) || byId.length > 0,
+    name: name || byId[byId.length - 1]?.player || who.globalName || who.username,
+    ...summarize(mine)
+  };
+}
+
+const signed = (n) => (n > 0 ? `+${n}` : String(n));
+const pts = (n) => `${n} Nexus Point${n === 1 ? "" : "s"}`;
+const notFound = (who) => `I could not find a signup under your Discord username **${who.username}**, ` +
+  "and no Nexus Ledger row has your Discord ID, so I do not know which points are yours. " +
+  "Sign up for an event with that username first.";
+
+/** /nexus: the caller's balance and latest entries. */
+export async function myNexus(sheet, cfg, who, getCsv = fetchLedger, mmr = null) {
+  if (!cfg.mmrSheetId) return "Nexus Points are not set up on this bot yet (MMR_SHEET_ID is missing).";
+  const ledger = await loadLedger(mmr, cfg.mmrSheetId, getCsv);
+  if (!ledger) {
+    const { rows } = await sheet.readSignups();
+    const hit = findRow(rows, who, { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId });
+    if (hit.status !== "matched") return notFound(who);
+    return "No Nexus Points have been handed out yet. They start with the next event.";
+  }
+  const me = await findPlayer(sheet, cfg, who, ledger.rows);
+  if (!me.found) return notFound(who);
+  const lines = me.entries.map((e) => `${signed(e.points)} · ${e.reason || "Nexus Points"}${e.date ? ` (${e.date})` : ""}`);
+  return `**${me.name}: ${pts(me.balance)}**` +
     (lines.length ? `\nLatest:\n${lines.join("\n")}` : "\nNone yet. You earn them by playing at events.") +
     (cfg.rankingsUrl ? `\nFull standings: ${cfg.rankingsUrl}` : "");
+}
+
+/* ---------- The shop ---------- */
+
+const SHOP_HEADER = ["Item", "Cost", "Description"];
+const EXAMPLE = ["Booster pack", "5", "One Riftbound booster pack. Collect it from an officer at the next event."];
+
+const toItems = (rows) => rows.map((o) => ({
+  name: cell(o, "item"), cost: Number(cell(o, "cost")), description: cell(o, "description")
+})).filter((i) => i.name && i.cost > 0);
+
+/** What the shop sells, from its tab. The tab is made, with one example item, the
+    first time anybody opens the shop, so there is something to edit. */
+export async function loadShop(mmr, sheetId, getCsv = fetchLedger) {
+  if (mmr) {
+    try {
+      return toItems((await mmr.readTab(SHOP_TAB)).rows);
+    } catch (err) {
+      if (/Unable to parse range/i.test(String(err.message))) {
+        try {
+          await mmr.ensureTab(SHOP_TAB);
+          await mmr.putValues(`'${SHOP_TAB}'!A1`, [SHOP_HEADER, EXAMPLE]);
+        } catch (e) {
+          if (String(e.message) === "SHEET_FORBIDDEN") return [];   // view-only access
+          throw e;
+        }
+        return toItems([Object.fromEntries(SHOP_HEADER.map((h, i) => [h, EXAMPLE[i]]))]);
+      }
+      if (String(err.message) !== "SHEET_FORBIDDEN") throw err;
+    }
+  }
+  const { header, rows } = csvTable(await getCsv(sheetId, SHOP_TAB));
+  return has(header, "item") && has(header, "cost") ? toItems(rows) : [];
+}
+
+const MAX_ITEMS = 20;   // four rows of five buttons
+const idFor = (prefix, name) => `${prefix}${name}`.slice(0, 100);
+const itemFrom = (items, id, prefix) => items.find((i) => idFor(prefix, i.name) === id);
+const shopEmbed = (description) => ({ title: "🛒 Nexus Shop", description, color: 0x1c5f7c });
+const CANT_WRITE = "Redeeming is not switched on yet: an officer needs to share the Triton MMR sheet with the bot's service account address as an Editor.";
+
+/** Everything the shop needs for one member: the items, the ledger and who they are. */
+async function shopState(sheet, mmr, cfg, who, getCsv) {
+  if (!cfg.mmrSheetId) return { error: "The Nexus Shop is not set up on this bot yet (MMR_SHEET_ID is missing)." };
+  const [items, ledger] = await Promise.all([loadShop(mmr, cfg.mmrSheetId, getCsv), loadLedger(mmr, cfg.mmrSheetId, getCsv)]);
+  const me = await findPlayer(sheet, cfg, who, ledger?.rows || []);
+  if (!me.found) return { error: notFound(who) };
+  return { items, ledger, me };
+}
+
+/** The Nexus Shop button: their balance, the items, a button per item. */
+export async function shopView(sheet, mmr, cfg, who, getCsv = fetchLedger) {
+  const s = await shopState(sheet, mmr, cfg, who, getCsv);
+  if (s.error) return s.error;
+  const { items, me } = s;
+  const head = `**${me.name}**, you have **${pts(me.balance)}**.`;
+  if (!items.length) return { content: "", embeds: [shopEmbed(`${head}\n\nThe shop is empty right now. Check back soon.`)], components: [] };
+
+  const shown = items.slice(0, MAX_ITEMS);
+  const list = shown.map((i) => `**${i.name}** · ${pts(i.cost)}${i.description ? `\n${i.description}` : ""}`).join("\n\n");
+  const buttons = shown.map((i) => ({
+    type: 2, style: me.balance >= i.cost ? 1 : 2, disabled: me.balance < i.cost,
+    label: `${i.name} (${i.cost})`.slice(0, 80), custom_id: idFor("rb:buy:", i.name)
+  }));
+  const rows = [];
+  for (let k = 0; k < buttons.length; k += 5) rows.push({ type: 1, components: buttons.slice(k, k + 5) });
+  return {
+    content: "",
+    embeds: [shopEmbed(`${head}\n\n${list}\n\nPress an item to redeem it. You will be asked to confirm.`)],
+    components: rows
+  };
+}
+
+/** An item button: ask before spending anything. */
+export async function shopConfirm(sheet, mmr, cfg, who, customId, getCsv = fetchLedger) {
+  const s = await shopState(sheet, mmr, cfg, who, getCsv);
+  if (s.error) return s.error;
+  const item = itemFrom(s.items, customId, "rb:buy:");
+  if (!item) return "That item is not in the shop any more. Press **Nexus Shop** again to see what is.";
+  if (s.me.balance < item.cost) {
+    return `**${item.name}** costs ${pts(item.cost)} and you have ${pts(s.me.balance)}. You need ${pts(item.cost - s.me.balance)} more.`;
+  }
+  return {
+    content: "",
+    embeds: [shopEmbed(`Spend **${pts(item.cost)}** of your **${s.me.balance}** on **${item.name}**?` +
+      `\n\nYou will have ${pts(s.me.balance - item.cost)} left.`)],
+    components: [{ type: 1, components: [
+      { type: 2, style: 3, label: "Confirm", custom_id: idFor("rb:ok:", item.name) },
+      { type: 2, style: 2, label: "Cancel", custom_id: "rb:no" }
+    ] }]
+  };
+}
+
+/** Confirm: write the redemption to the ledger. `nonce` is the confirm message's ID,
+    kept in the Source column, so a double press cannot redeem twice. */
+export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv = fetchLedger) {
+  const s = await shopState(sheet, mmr, cfg, who, getCsv);
+  if (s.error) return s.error;
+  const item = itemFrom(s.items, customId, "rb:ok:");
+  if (!item) return "That item is not in the shop any more. Nothing was spent.";
+  const tag = `Nexus Shop #${nonce}`;
+  if (s.ledger?.rows.some((r) => r.source === tag)) return `Already redeemed: **${item.name}**. Nothing more was spent.`;
+  if (s.me.balance < item.cost) {
+    return `**${item.name}** costs ${pts(item.cost)} and you have ${pts(s.me.balance)}. Nothing was spent.`;
+  }
+  if (!s.ledger?.writable) return CANT_WRITE;
+
+  const values = { date: eventDate(cfg.tz), player: s.me.name, points: String(-item.cost),
+    reason: `Redeemed: ${item.name}`, source: tag, "discord id": who.id };
+  const row = s.ledger.header.map((h) => values[h.trim().toLowerCase()] ?? "");
+  try {
+    await mmr.appendRow(LEDGER_TAB, row);
+  } catch (err) {
+    if (String(err.message) === "SHEET_FORBIDDEN") return CANT_WRITE;
+    throw err;
+  }
+  return {
+    content: "",
+    embeds: [shopEmbed(`✅ Redeemed **${item.name}** for ${pts(item.cost)}.\n` +
+      `You have **${pts(s.me.balance - item.cost)}** left.\n\n` +
+      "Show this message to an officer at the next event to collect it.")],
+    components: []
+  };
 }

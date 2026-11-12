@@ -8,7 +8,7 @@ const labels = (msg) => msg.components.map((row) => row.components.map((b) => b.
 
 test("the panel puts actions on one row and links on a second", () => {
   const rows = labels(panelMessage(30, ALL));
-  assert.deepEqual(rows, [["Check in", "Am I in?", "Events", "My signups"], ["Sign up", "Feedback", "Rankings"]]);
+  assert.deepEqual(rows, [["Check in", "Am I in?", "Events", "My signups", "Nexus Shop"], ["Sign up", "Feedback", "Rankings"]]);
   assert.ok(rows.every((r) => r.length <= 5), "Discord allows at most five buttons in a row");
 });
 
@@ -31,7 +31,7 @@ test("the guide uses the configured check-in window and points at /rb-bot", () =
 
 test("link buttons and their guide lines are left out when no link is set", () => {
   const msg = panelMessage(30, { feedbackUrl: ALL.feedbackUrl });
-  assert.deepEqual(labels(msg), [["Check in", "Am I in?", "Events", "My signups"], ["Feedback"]]);
+  assert.deepEqual(labels(msg), [["Check in", "Am I in?", "Events", "My signups", "Nexus Shop"], ["Feedback"]]);
   assert.doesNotMatch(msg.embeds[0].description, /Sign up|Rankings/);
   assert.equal(panelMessage(30, {}).components.length, 1);
 });

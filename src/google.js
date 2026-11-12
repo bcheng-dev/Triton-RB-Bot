@@ -155,6 +155,20 @@ export class Sheet {
     return Number(m[1]);
   }
 
+  /** Overwrite a block of cells, like 'Tab'!A1. */
+  async putValues(range, values) {
+    await this.call(`/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+      { method: "PUT", body: JSON.stringify({ values }) });
+  }
+
+  /** Add one row at the bottom of a tab. */
+  async appendRow(tab, row) {
+    await this.call(
+      `/values/${encodeURIComponent(`${q(tab)}!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { method: "POST", body: JSON.stringify({ values: [row] }) }
+    );
+  }
+
   async ensureColumn(header, name, tab = this.cfg.signupTab) {
     const i = header.indexOf(name);
     if (i >= 0) return i;

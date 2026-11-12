@@ -43,7 +43,7 @@ test("/rb-bot shows anybody the full panel, privately, with no officer role", as
   assert.equal(json.data.flags, 64, "only the person who asked sees it");
   assert.equal(json.data.embeds[0].title, "TNN Bot");
   const labels = json.data.components.map((row) => row.components.map((b) => b.label));
-  assert.deepEqual(labels, [["Check in", "Am I in?", "Events", "My signups"], ["Sign up", "Rankings"]]);
+  assert.deepEqual(labels, [["Check in", "Am I in?", "Events", "My signups", "Nexus Shop"], ["Sign up", "Rankings"]]);
 });
 
 test("using the bot in a server brings that server's command list up to date", async (t) => {
