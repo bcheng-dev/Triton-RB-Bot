@@ -144,3 +144,19 @@ test("somebody the bot cannot place gets no shop", async () => {
   const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]] });
   assert.match(await shopView(noSignups, mmr, cfg, { id: "9", username: "stranger" }), /could not find a signup/);
 });
+
+test("two redemptions at the same moment cannot take a balance below zero", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]], shop: [["Pack", "3", ""]] });
+  // Another shop window's redemption lands after this one read the balance.
+  const append = mmr.appendRow.bind(mmr);
+  let first = true;
+  mmr.appendRow = async (tab, row) => {
+    if (first) { first = false; await append(tab, ["2026-11-13", "test", "-3", "Redeemed: Pack", "Nexus Shop #other", brian.id]); }
+    return append(tab, row);
+  };
+  const out = await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "mine");
+  assert.match(out, /did not go through/);
+  const mine = mmr.tabs["Nexus Ledger"].filter((r) => String(r[4]).startsWith("Nexus Shop #mine"));
+  assert.deepEqual(mine.map((r) => r[2]), ["-3", "3"], "the overspend is refunded");
+  assert.match(mine[1][3], /^Refund: Pack/);
+});

@@ -79,7 +79,7 @@ export function balanceFor(rows, name) {
 
 function summarize(mine) {
   const total = Math.round(mine.reduce((a, r) => a + r.points, 0) * 10) / 10;
-  return { balance: Math.max(0, total), entries: mine.slice(-5).reverse() };
+  return { balance: Math.max(0, total), total, entries: mine.slice(-5).reverse() };
 }
 
 /** The ledger, read through the API when the bot has access, else the public CSV.
@@ -113,18 +113,24 @@ export function isTheirs(value, who) {
     as check-in does, never by a typed name) count too, unless that row's Discord ID
     points at somebody else. */
 export async function findPlayer(sheet, cfg, who, ledgerRowsList) {
-  const byId = ledgerRowsList.filter((r) => isTheirs(r.discordId, who));
   let name = "";
   const { rows: signups } = await sheet.readSignups();
   const hit = findRow(signups, who, { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId });
   if (hit.status === "matched") name = String(hit.row[cfg.colName] || "").trim();
-  const key = normName(name);
-  const mine = ledgerRowsList.filter((r) => byId.includes(r) || (key && !r.discordId && normName(r.player) === key));
+  const mine = ownRows(ledgerRowsList, who, name);
+  const byId = mine.filter((r) => isTheirs(r.discordId, who));
   return {
     found: Boolean(name) || byId.length > 0,
+    signupName: name,
     name: name || byId[byId.length - 1]?.player || who.globalName || who.username,
     ...summarize(mine)
   };
+}
+
+/** The rows findPlayer counts, given the name from their signup ("" for none). */
+export function ownRows(rows, who, signupName) {
+  const key = normName(signupName);
+  return rows.filter((r) => isTheirs(r.discordId, who) || (key && !r.discordId && normName(r.player) === key));
 }
 
 const signed = (n) => (n > 0 ? `+${n}` : String(n));
@@ -282,10 +288,21 @@ export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv =
     if (String(err.message) === "SHEET_FORBIDDEN") return CANT_WRITE;
     throw err;
   }
+
+  // Two redemptions confirmed at the same moment (two shop windows) both see the
+  // old balance. Read the ledger back: if this one took the balance below zero,
+  // put the points back with a matching refund row and say it did not go through.
+  const after = await loadLedger(mmr, cfg.mmrSheetId, getCsv);
+  const left = summarize(ownRows(after?.rows || [], who, s.me.signupName)).total;
+  if (left < 0) {
+    const refund = { ...values, points: String(item.cost), reason: `Refund: ${item.name} (went below zero)`, source: `${tag} refund` };
+    await mmr.appendRow(LEDGER_TAB, s.ledger.header.map((h) => refund[h.trim().toLowerCase()] ?? ""));
+    return "That did not go through: another redemption landed at the same moment and used up your points. Nothing was spent.";
+  }
   return {
     content: "",
     embeds: [shopEmbed(`✅ Redeemed **${item.name}** for ${pts(item.cost)}.\n` +
-      `You have **${pts(s.me.balance - item.cost)}** left.\n\n` +
+      `You have **${pts(Math.max(0, left))}** left.\n\n` +
       "Show this message to an officer at the next event to collect it.")],
     components: []
   };
