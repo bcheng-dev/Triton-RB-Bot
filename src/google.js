@@ -161,6 +161,12 @@ export class Sheet {
       { method: "PUT", body: JSON.stringify({ values }) });
   }
 
+  /** Put a formula in one cell; it is entered as if typed, so the sheet runs it. */
+  async putFormula(range, formula) {
+    await this.call(`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+      { method: "PUT", body: JSON.stringify({ values: [[formula]] }) });
+  }
+
   /** Add one row at the bottom of a tab. */
   async appendRow(tab, row) {
     await this.call(

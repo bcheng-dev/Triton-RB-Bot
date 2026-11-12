@@ -24,6 +24,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | **My signups** button, `/mysignups` | every upcoming event with ✅ or ❌ for whether you signed up |
 | `/nexus` | your Nexus Points balance and latest awards, read from the Nexus Ledger tab of the Triton MMR sheet |
 | **Nexus Shop** button | your Nexus Points and the shop, privately. Press an item, then **Confirm**, and the bot writes a negative row to the Nexus Ledger (`Redeemed: <item>`, your Discord ID, and `Nexus Shop #<id>` so a double press cannot spend twice; after writing, the bot reads the ledger back and refunds a redemption that took the balance below zero, which only happens when two are confirmed at the same moment). Items live on the **Nexus Shop** tab of Triton MMR (`Item · Cost · Description`), made with one example (Pack, 3 points) the first time anybody opens the shop. Every item gets a **Redeem** button; pressing one you cannot afford gets a random joke instead of a confirm. Redeeming needs Triton MMR shared with the service account as an Editor |
+| **Nexus Balances** tab | on Triton MMR: every player's current points, totalled by a formula from the Nexus Ledger, which keeps one row for every gain and spend and never deletes any. Made by the bot on the first redemption, or by the matchmaking script on its next points sync |
 | **Sign up** button | opens the signup form (`SIGNUP_FORM_URL`) |
 | **Feedback** button | opens the feedback form (`FEEDBACK_FORM_URL`) |
 | **Rankings** button | opens the standings site (`RANKINGS_URL`) |

@@ -11,6 +11,23 @@ import { eventDate } from "./logic.js";
 
 export const LEDGER_TAB = "Nexus Ledger";
 export const SHOP_TAB = "Nexus Shop";
+export const BALANCES_TAB = "Nexus Balances";
+
+/* Each player's current total, worked out by the sheet from the ledger. The same
+   formula the matchmaking script uses; whichever runs first makes the tab. */
+const BALANCES_FORMULA = "=QUERY('Nexus Ledger'!A2:C, \"select B, sum(C), count(C) where B is not null and B <> '' " +
+  "group by B order by sum(C) desc label B 'Player', sum(C) 'Points', count(C) 'Entries'\", 0)";
+
+/** Make the Nexus Balances tab if it is missing. Never fails a redemption over it. */
+export async function ensureBalances(mmr) {
+  try {
+    if ((await mmr.listTabs()).includes(BALANCES_TAB)) return;
+    await mmr.ensureTab(BALANCES_TAB);
+    await mmr.putFormula(`'${BALANCES_TAB}'!A1`, BALANCES_FORMULA);
+  } catch (err) {
+    console.error("could not make the Nexus Balances tab", err);
+  }
+}
 
 /** A tab as CSV. Google answers a missing tab with the first one, so the caller
     checks the header before trusting it. */
@@ -279,7 +296,7 @@ export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv =
   if (s.me.balance < item.cost) return `${broke(item, s.me.balance, rand)} Nothing was spent.`;
   if (!s.ledger?.writable) return CANT_WRITE;
 
-  const values = { date: eventDate(cfg.tz), player: s.me.name, points: String(-item.cost),
+  const values = { date: eventDate(cfg.tz), player: s.me.name, points: -item.cost,
     reason: `Redeemed: ${item.name}`, source: tag, "discord id": who.id };
   const row = s.ledger.header.map((h) => values[h.trim().toLowerCase()] ?? "");
   try {
@@ -292,10 +309,11 @@ export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv =
   // Two redemptions confirmed at the same moment (two shop windows) both see the
   // old balance. Read the ledger back: if this one took the balance below zero,
   // put the points back with a matching refund row and say it did not go through.
+  await ensureBalances(mmr);
   const after = await loadLedger(mmr, cfg.mmrSheetId, getCsv);
   const left = summarize(ownRows(after?.rows || [], who, s.me.signupName)).total;
   if (left < 0) {
-    const refund = { ...values, points: String(item.cost), reason: `Refund: ${item.name} (went below zero)`, source: `${tag} refund` };
+    const refund = { ...values, points: item.cost, reason: `Refund: ${item.name} (went below zero)`, source: `${tag} refund` };
     await mmr.appendRow(LEDGER_TAB, s.ledger.header.map((h) => refund[h.trim().toLowerCase()] ?? ""));
     return "That did not go through: another redemption landed at the same moment and used up your points. Nothing was spent.";
   }

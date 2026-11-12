@@ -62,8 +62,11 @@ function fakeMmr({ ledger = [], shop } = {}) {
       const [header, ...body] = tabs[tab];
       return { header, rows: body.map((r, i) => ({ _line: i + 2, ...Object.fromEntries(header.map((h, c) => [h, r[c] ?? ""])) })) };
     },
-    async ensureTab(tab) { tabs[tab] = tabs[tab] || []; },
+    async ensureTab(tab) { tabs[tab] = tabs[tab] || [[]]; },
+    formulas: {},
+    async listTabs() { return Object.keys(tabs); },
     async putValues(range, values) { tabs[/'(.+)'/.exec(range)[1]] = values; },
+    async putFormula(range, f) { this.formulas[range] = f; },
     async appendRow(tab, row) { this.appended.push(row); tabs[tab].push(row); }
   };
 }
@@ -123,7 +126,8 @@ test("redeeming asks first, then writes one negative ledger row, and only once",
   const done = await shopRedeem(noSignups, mmr, { ...cfg, tz: "America/Los_Angeles" }, brian, "rb:ok:Pack", "msg1");
   assert.match(done.embeds[0].description, /Redeemed \*\*Pack\*\* for 5 Nexus Points[\s\S]*0 Nexus Points\*\* left/);
   const row = mmr.appended[0];
-  assert.deepEqual(row.slice(1), ["test", "-5", "Redeemed: Pack", "Nexus Shop #msg1", brian.id]);
+  assert.deepEqual(row.slice(1), ["test", -5, "Redeemed: Pack", "Nexus Shop #msg1", brian.id]);
+  assert.match(mmr.formulas["'Nexus Balances'!A1"], /^=QUERY\('Nexus Ledger'!A2:C/, "the Balances tab is made");
 
   assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg1"), /Already redeemed/);
   assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg2"), /you have 0 Nexus Points\. You need 5 Nexus Points more\. Nothing was spent/);
@@ -157,6 +161,6 @@ test("two redemptions at the same moment cannot take a balance below zero", asyn
   const out = await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "mine");
   assert.match(out, /did not go through/);
   const mine = mmr.tabs["Nexus Ledger"].filter((r) => String(r[4]).startsWith("Nexus Shop #mine"));
-  assert.deepEqual(mine.map((r) => r[2]), ["-3", "3"], "the overspend is refunded");
+  assert.deepEqual(mine.map((r) => r[2]), [-3, 3], "the overspend is refunded");
   assert.match(mine[1][3], /^Refund: Pack/);
 });
