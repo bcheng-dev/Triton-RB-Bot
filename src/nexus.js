@@ -154,7 +154,7 @@ export async function myNexus(sheet, cfg, who, getCsv = fetchLedger, mmr = null)
 /* ---------- The shop ---------- */
 
 const SHOP_HEADER = ["Item", "Cost", "Description"];
-const EXAMPLE = ["Booster pack", "5", "One Riftbound booster pack. Collect it from an officer at the next event."];
+const EXAMPLE = ["Pack", "3", "One Riftbound booster pack. Collect it from an officer at the next event."];
 
 const toItems = (rows) => rows.map((o) => ({
   name: cell(o, "item"), cost: Number(cell(o, "cost")), description: cell(o, "description")
@@ -185,6 +185,25 @@ export async function loadShop(mmr, sheetId, getCsv = fetchLedger) {
 }
 
 const MAX_ITEMS = 20;   // four rows of five buttons
+
+/** What somebody short on points is told, picked at random, then the actual numbers. */
+export const BROKE = [
+  "Your wallet just made a sad little noise. 💸",
+  "🚨 Broke alert. 🚨",
+  "The shopkeeper looked at your points and laughed.",
+  "Nice try, but you are running on fumes.",
+  "Insufficient funds. Have you tried winning more?",
+  "Even the pack is judging you right now.",
+  "Your Nexus Points called. They want more friends.",
+  "Not enough points. The grind continues. ⚔️",
+  "Ain't no way. Go play some more games first.",
+  "Your balance is giving free trial.",
+  "You reach for your coin pouch. It is just lint.",
+  "Bold of you to walk in here with that balance."
+];
+const broke = (item, balance, rand = Math.random) =>
+  `${BROKE[Math.floor(rand() * BROKE.length) % BROKE.length]}\n\n` +
+  `**${item.name}** costs ${pts(item.cost)} and you have ${pts(balance)}. You need ${pts(item.cost - balance)} more.`;
 const idFor = (prefix, name) => `${prefix}${name}`.slice(0, 100);
 const itemFrom = (items, id, prefix) => items.find((i) => idFor(prefix, i.name) === id);
 const shopEmbed = (description) => ({ title: "🛒 Nexus Shop", description, color: 0x1c5f7c });
@@ -209,9 +228,11 @@ export async function shopView(sheet, mmr, cfg, who, getCsv = fetchLedger) {
 
   const shown = items.slice(0, MAX_ITEMS);
   const list = shown.map((i) => `**${i.name}** · ${pts(i.cost)}${i.description ? `\n${i.description}` : ""}`).join("\n\n");
+  // Every item gets a button, affordable or not (grey when not): pressing one you
+  // cannot afford gets a joke instead of a confirm.
   const buttons = shown.map((i) => ({
-    type: 2, style: me.balance >= i.cost ? 1 : 2, disabled: me.balance < i.cost,
-    label: `${i.name} (${i.cost})`.slice(0, 80), custom_id: idFor("rb:buy:", i.name)
+    type: 2, style: me.balance >= i.cost ? 1 : 2,
+    label: `Redeem ${i.name} (${i.cost})`.slice(0, 80), custom_id: idFor("rb:buy:", i.name)
   }));
   const rows = [];
   for (let k = 0; k < buttons.length; k += 5) rows.push({ type: 1, components: buttons.slice(k, k + 5) });
@@ -223,14 +244,12 @@ export async function shopView(sheet, mmr, cfg, who, getCsv = fetchLedger) {
 }
 
 /** An item button: ask before spending anything. */
-export async function shopConfirm(sheet, mmr, cfg, who, customId, getCsv = fetchLedger) {
+export async function shopConfirm(sheet, mmr, cfg, who, customId, getCsv = fetchLedger, rand = Math.random) {
   const s = await shopState(sheet, mmr, cfg, who, getCsv);
   if (s.error) return s.error;
   const item = itemFrom(s.items, customId, "rb:buy:");
   if (!item) return "That item is not in the shop any more. Press **Nexus Shop** again to see what is.";
-  if (s.me.balance < item.cost) {
-    return `**${item.name}** costs ${pts(item.cost)} and you have ${pts(s.me.balance)}. You need ${pts(item.cost - s.me.balance)} more.`;
-  }
+  if (s.me.balance < item.cost) return broke(item, s.me.balance, rand);
   return {
     content: "",
     embeds: [shopEmbed(`Spend **${pts(item.cost)}** of your **${s.me.balance}** on **${item.name}**?` +
@@ -244,16 +263,14 @@ export async function shopConfirm(sheet, mmr, cfg, who, customId, getCsv = fetch
 
 /** Confirm: write the redemption to the ledger. `nonce` is the confirm message's ID,
     kept in the Source column, so a double press cannot redeem twice. */
-export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv = fetchLedger) {
+export async function shopRedeem(sheet, mmr, cfg, who, customId, nonce, getCsv = fetchLedger, rand = Math.random) {
   const s = await shopState(sheet, mmr, cfg, who, getCsv);
   if (s.error) return s.error;
   const item = itemFrom(s.items, customId, "rb:ok:");
   if (!item) return "That item is not in the shop any more. Nothing was spent.";
   const tag = `Nexus Shop #${nonce}`;
   if (s.ledger?.rows.some((r) => r.source === tag)) return `Already redeemed: **${item.name}**. Nothing more was spent.`;
-  if (s.me.balance < item.cost) {
-    return `**${item.name}** costs ${pts(item.cost)} and you have ${pts(s.me.balance)}. Nothing was spent.`;
-  }
+  if (s.me.balance < item.cost) return `${broke(item, s.me.balance, rand)} Nothing was spent.`;
   if (!s.ledger?.writable) return CANT_WRITE;
 
   const values = { date: eventDate(cfg.tz), player: s.me.name, points: String(-item.cost),

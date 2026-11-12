@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCsv, ledgerRows, balanceFor, myNexus, shopView, shopConfirm, shopRedeem, isTheirs } from "../src/nexus.js";
+import { parseCsv, ledgerRows, balanceFor, myNexus, shopView, shopConfirm, shopRedeem, isTheirs, BROKE } from "../src/nexus.js";
 
 const cfg = { colName: "Name", colDiscord: "Discord", colVerifiedId: "Discord ID (verified)",
               mmrSheetId: "sheet", rankingsUrl: "https://example.com/" };
@@ -98,15 +98,19 @@ test("the shop is made with an example item the first time, and shows the balanc
   assert.deepEqual(mmr.tabs["Nexus Shop"][0], ["Item", "Cost", "Description"]);
   assert.match(view.embeds[0].description, /you have \*\*5 Nexus Points\*\*/);
   const btn = view.components[0].components[0];
-  assert.equal(btn.custom_id, "rb:buy:Booster pack");
-  assert.equal(btn.disabled, false);
+  assert.equal(btn.custom_id, "rb:buy:Pack");
+  assert.equal(btn.label, "Redeem Pack (3)");
 });
 
-test("items you cannot afford are greyed out", async () => {
-  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]], shop: [["Playmat", "40", ""], ["Pack", "5", ""]] });
-  const [mat, pack] = (await shopView(noSignups, mmr, cfg, brian)).components[0].components;
-  assert.equal(mat.disabled, true);
-  assert.equal(pack.disabled, false);
+test("every item gets a Redeem button; one you cannot afford is grey and gets a joke", async () => {
+  const mmr = fakeMmr({ ledger: [["11/12", "test", "5", "", "", "penguinstacy"]], shop: [["Pack", "3", ""], ["Option B", "40", ""]] });
+  const [pack, b] = (await shopView(noSignups, mmr, cfg, brian)).components[0].components;
+  assert.deepEqual([pack.label, pack.style, b.label, b.style], ["Redeem Pack (3)", 1, "Redeem Option B (40)", 2]);
+  assert.ok(!b.disabled);
+  const out = await shopConfirm(noSignups, mmr, cfg, brian, "rb:buy:Option B", undefined, () => 0);
+  assert.ok(out.startsWith(BROKE[0]));
+  assert.match(out, /\*\*Option B\*\* costs 40 Nexus Points and you have 5 Nexus Points\. You need 35 Nexus Points more/);
+  assert.ok((await shopConfirm(noSignups, mmr, cfg, brian, "rb:buy:Option B", undefined, () => 0.999)).startsWith(BROKE.at(-1)));
 });
 
 test("redeeming asks first, then writes one negative ledger row, and only once", async () => {
@@ -122,7 +126,7 @@ test("redeeming asks first, then writes one negative ledger row, and only once",
   assert.deepEqual(row.slice(1), ["test", "-5", "Redeemed: Pack", "Nexus Shop #msg1", brian.id]);
 
   assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg1"), /Already redeemed/);
-  assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg2"), /you have 0 Nexus Points\. Nothing was spent/);
+  assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg2"), /you have 0 Nexus Points\. You need 5 Nexus Points more\. Nothing was spent/);
   assert.equal(mmr.appended.length, 1);
 });
 
