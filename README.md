@@ -22,6 +22,7 @@ Free tier is 100,000 requests a day. A 40-person event uses about 40.
 | **Am I in?** button | whether they are already down for tonight |
 | **Events** button, `/events` | upcoming events, when check-in opens, the form link |
 | **My signups** button, `/mysignups` | every upcoming event with ✅ or ❌ for whether you signed up |
+| `/nexus` | your Nexus Points balance and latest awards, read from the Nexus Ledger tab of the Triton MMR sheet |
 | **Sign up** button | opens the signup form (`SIGNUP_FORM_URL`) |
 | **Feedback** button | opens the feedback form (`FEEDBACK_FORM_URL`) |
 | **Rankings** button | opens the standings site (`RANKINGS_URL`) |

@@ -17,6 +17,7 @@ export const commandList = ({ panelForEveryone = false } = {}) => [
   { name: "checkin", description: "Check yourself in for the Riftbound event", type: 1 },
   { name: "events", description: "Upcoming events, when check-in opens, and sign-up links", type: 1 },
   { name: "mysignups", description: "Which upcoming events you are signed up for", type: 1 },
+  { name: "nexus", description: "How many Nexus Points you have", type: 1 },
   panelForEveryone
     ? { name: "panel", description: "Post the check-in panel in this channel for everyone", type: 1 }
     : { name: "panel", description: "Post the check-in panel in this channel for everyone (officers)", type: 1,

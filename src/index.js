@@ -13,6 +13,7 @@ import {
   checkIn, amIIn, checkInFor, uncheck, attendance, signups,
   parseEvents, applyEvents, addEvent, removeEvent, listEvents, mySignups
 } from "./logic.js";
+import { myNexus } from "./nexus.js";
 
 function config(env) {
   const signupTab = env.SIGNUP_TAB || "Form Responses 1";
@@ -30,7 +31,8 @@ function config(env) {
     colEvent: env.COL_EVENT || "",
     formUrl: env.SIGNUP_FORM_URL || "",
     feedbackUrl: env.FEEDBACK_FORM_URL || "",
-    rankingsUrl: env.RANKINGS_URL || ""
+    rankingsUrl: env.RANKINGS_URL || "",
+    mmrSheetId: env.MMR_SHEET_ID || ""
   };
 }
 
@@ -241,6 +243,7 @@ export default {
       if (name === "checkin") return background(() => checkIn(sheet, cfg, who(body)));
       if (name === "events") return background(async () => listEvents(cfg));
       if (name === "mysignups") return background(() => mySignups(sheet, cfg, who(body)));
+      if (name === "nexus") return background(() => myNexus(sheet, cfg, who(body)));
 
       // Officers: put the panel up in this channel for everyone, and bring every
       // server's commands up to date now rather than on the next ten-minute check.

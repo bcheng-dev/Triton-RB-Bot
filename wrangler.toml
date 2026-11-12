@@ -22,6 +22,8 @@ SIGNUP_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSeCkISw6Yq8_w5BTWjmZ
 FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSezV251wrUoGkgA849IctE0xLvoyfxPUApRPx1vWSe1jjKwdQ/viewform"
 # What the panel's Rankings button opens.
 RANKINGS_URL = "https://bcheng-dev.github.io/TNN-Standings/"
+# The Triton MMR sheet (public, view only). /nexus reads its Nexus Ledger tab.
+MMR_SHEET_ID = "1dbezzcgyLVsv_yz_8CfBQmcrI_2_u9AjZ5hjyAaqIRo"
 # The bot's own log. Not "Attendance": that name is taken by an older form's tab.
 ATTENDANCE_TAB = "Check-in Log"
 # The schedule /event-add writes to, one row per event.
