@@ -193,6 +193,22 @@ export function rowsFor(header, rows, cfg, date, now = new Date()) {
 
 const signUpHint = (cfg) => (cfg.formUrl ? ` Sign up here: <${cfg.formUrl}>` : "");
 
+/** findRow, except that a member found on both the current form and an old one (they
+    signed up again on the new form) is matched to the current form's row. The rules
+    stay findRow's: still exactly one row, by ID or handle. */
+function findSignup(rows, who, cols) {
+  const hit = findRow(rows, who, cols);
+  if (hit.status !== "ambiguous" || !hit.rows.some((r) => r._old)) return hit;
+  const fresh = findRow(rows.filter((r) => !r._old), who, cols);
+  return fresh.status === "matched" ? fresh : hit;
+}
+
+/** Of several rows, the one on the current form if exactly one is. */
+const onlyFresh = (list) => {
+  const fresh = list.filter((r) => !r._old);
+  return fresh.length === 1 && list.length > 1 ? fresh[0] : null;
+};
+
 /* ---------- Member check-in ---------- */
 
 export async function checkIn(sheet, cfg, who, now = new Date()) {
@@ -217,7 +233,7 @@ export async function checkIn(sheet, cfg, who, now = new Date()) {
 
   const cols = { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId };
   const { rows, byDate } = rowsFor(header, all, cfg, date, now);
-  const hit = findRow(rows, who, cols);
+  const hit = findSignup(rows, who, cols);
 
   // Signed up, just not for tonight: say that, rather than "no signup found".
   if (hit.status === "none" && byDate && findRow(all, who, cols).status !== "none") {
@@ -245,9 +261,13 @@ export async function checkIn(sheet, cfg, who, now = new Date()) {
     return `You are already checked in for tonight as **${row[cfg.colName] || who.username}**. Nothing more to do.`;
   }
 
-  await sheet.markRow(header, row._line, { checkedValue: date, discordId: who.id });
+  // A signup from an old form is copied onto the current tab first, so every
+  // check-in mark lives on the current tab.
+  const line = row._old ? await sheet.portRow(row) : row._line;
+  await sheet.markRow(header, line, { checkedValue: date, discordId: who.id });
   await sheet.logAttendance([
-    stamp(cfg.tz), date, row[cfg.colName] || who.username, who.id, who.username, hit.by, row._line, ""
+    stamp(cfg.tz), date, row[cfg.colName] || who.username, who.id, who.username, hit.by, line,
+    row._old ? `copied from ${String(row._line).split("!")[0]}` : ""
   ]);
   return `You are checked in for tonight as **${row[cfg.colName] || who.username}**.` +
     (hit.by === "handle"
@@ -316,8 +336,10 @@ function pickRow(rows, cfg, { target, name }) {
     const want = normName(name);
     const exact = rows.filter((r) => normName(r[cfg.colName]) === want);
     if (exact.length === 1) return { row: exact[0] };
+    if (onlyFresh(exact)) return { row: onlyFresh(exact) };
     const loose = rows.filter((r) => normName(r[cfg.colName]).includes(want));
     if (loose.length === 1) return { row: loose[0] };
+    if (!exact.length && onlyFresh(loose)) return { row: onlyFresh(loose) };
     return {
       error: exact.length > 1 || loose.length > 1
         ? `More than one signup matches "${name}". Use the exact name as it appears on the sheet.`
@@ -326,7 +348,7 @@ function pickRow(rows, cfg, { target, name }) {
   }
   if (target) {
     const cols = { name: cfg.colName, discord: cfg.colDiscord, verifiedId: cfg.colVerifiedId };
-    const hit = findRow(rows, target, cols);
+    const hit = findSignup(rows, target, cols);
     if (hit.status !== "matched") {
       return { error: `No signup row points at ${target.username}. Pass \`name:\` as well to say which row is theirs.` };
     }
@@ -358,10 +380,11 @@ export async function checkInFor(sheet, cfg, { target, name, by }, now = new Dat
     return `**${row[cfg.colName]}** is already checked in for ${date}. Nothing more to do.`;
   }
 
-  await sheet.markRow(header, row._line, { checkedValue: date, discordId: target ? target.id : "" });
+  const line = row._old ? await sheet.portRow(row) : row._line;
+  await sheet.markRow(header, line, { checkedValue: date, discordId: target ? target.id : "" });
   await sheet.logAttendance([
     stamp(cfg.tz), date, row[cfg.colName], target ? target.id : "", target ? target.username : "",
-    "organizer", row._line, `added by ${by}`
+    "organizer", line, `added by ${by}` + (row._old ? `, copied from ${String(row._line).split("!")[0]}` : "")
   ]);
   return `Checked in **${row[cfg.colName]}** for ${date}${note}.`;
 }

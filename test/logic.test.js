@@ -247,3 +247,33 @@ test("signups for another date, and a date nobody picked", async () => {
   assert.match(await signups(s, dated, { date: "2/2/2099" }), /Nobody has signed up/);
   assert.match(await signups(s, dated, { date: "someday" }), /could not read the date/);
 });
+
+/* ---------- Old signup tabs ---------- */
+
+test("a signup on the old form is copied over and checked in on the new tab", async () => {
+  const s = stubSheet([{ Name: "Ari", Discord: "arimain", _old: true, _line: "Old!5" }]);
+  s.readSignups = async () => ({ header: ["Name", "Discord"], rows: [{ Name: "Ari", Discord: "arimain", _old: true, _line: "Old!5" }] });
+  s.portRow = async (row) => { s.ported = row; return 9; };
+  const out = await checkIn(s, cfg, { id: "1", username: "arimain" });
+  assert.match(out, /checked in for tonight as \*\*Ari\*\*/);
+  assert.equal(s.ported.Name, "Ari");
+  assert.equal(s.marks[0].line, 9);
+  assert.equal(s.appended[0][6], 9);
+  assert.match(s.appended[0][7], /copied from Old/);
+});
+
+test("signed up on both forms: the new form's row wins instead of being ambiguous", async () => {
+  const rows = [
+    { Name: "Ari", Discord: "arimain", _line: 2 },
+    { Name: "Ari", Discord: "arimain", _old: true, _line: "Old!5" }
+  ];
+  const s = stubSheet([]);
+  s.readSignups = async () => ({ header: ["Name", "Discord"], rows });
+  const out = await checkIn(s, cfg, { id: "1", username: "arimain" });
+  assert.match(out, /checked in for tonight/);
+  assert.equal(s.marks[0].line, 2);
+  const s2 = stubSheet([]);
+  s2.readSignups = async () => ({ header: ["Name", "Discord"], rows });
+  assert.match(await checkInFor(s2, cfg, { target: null, name: "Ari", by: "brian" }), /Checked in \*\*Ari\*\*/);
+  assert.equal(s2.marks[0].line, 2);
+});

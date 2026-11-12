@@ -105,6 +105,16 @@ schedule, signup sheet and Check-in Log.
 
 ---
 
+**Switching to a new signup form:** point `SIGNUP_TAB` at the new form's tab and
+put the old tab's name in `OLD_SIGNUP_TABS` (several split by `|`). The old tab's
+signups still count, its columns are matched to the new tab's by name, ignoring case.
+When somebody from the old tab checks in, their signup is copied onto the new tab and
+checked in there, so the **Checked in** and **Discord ID (verified)** columns, added at
+the end of the new tab, end up holding everything. Somebody on both tabs is matched to
+the new tab's row.
+
+---
+
 ## Matching, and the one thing to get right on the form
 
 **Do not ask for a Discord ID on the form.** Discord hands the Worker the clicker's

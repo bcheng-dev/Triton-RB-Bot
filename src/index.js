@@ -21,6 +21,7 @@ function config(env) {
     tz: env.TIMEZONE || "America/Los_Angeles",
     signupTab,
     defaultTab: signupTab,
+    oldTabs: String(env.OLD_SIGNUP_TABS || "").split("|").map((t) => t.trim()).filter(Boolean),
     attendanceTab: env.ATTENDANCE_TAB || "Attendance",
     eventsTab: env.EVENTS_TAB || "Events",
     opensMinutes: Number(env.CHECKIN_OPENS_MINUTES || 30),

@@ -13,6 +13,9 @@ compatibility_flags = ["nodejs_compat"]
 TIMEZONE = "America/Los_Angeles"
 # The signup form's response tab. One form serves every event.
 SIGNUP_TAB = "TRN Signups"
+# Tabs of signup forms this one replaced, split by |. Their signups still count, so
+# nobody who used an old form is lost. Rows on the new tab win over old duplicates.
+OLD_SIGNUP_TABS = "TNN Signups"
 # The form question where people pick their event date. Signups are matched to the
 # event by the date in this answer. Several headers, split by |, are all checked.
 COL_EVENT = "Which event are you signing up for?|Which Event are you signing up for?|Which event(date) are you signing up for?"

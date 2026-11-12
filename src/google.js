@@ -86,8 +86,8 @@ export class Sheet {
     return res.json();
   }
 
-  async readSignups() {
-    const data = await this.call(`/values/${encodeURIComponent(q(this.cfg.signupTab))}`);
+  async readTab(tab) {
+    const data = await this.call(`/values/${encodeURIComponent(q(tab))}`);
     const values = data.values || [];
     if (!values.length) return { header: [], rows: [] };
     const header = values[0].map((h) => String(h).trim());
@@ -99,26 +99,88 @@ export class Sheet {
     return { header, rows };
   }
 
-  async ensureColumn(header, name) {
+  /** The signup tab's rows. Reading the usual tab also pulls in OLD_SIGNUP_TABS, the
+      tabs of forms it replaced, so nobody who signed up on an old form is lost. Their
+      rows come back marked _old, under this tab's column names (matched ignoring
+      case), with _line as "Tab!row" so check-ins and the log point at the right tab. */
+  async readSignups() {
+    const main = await this.readTab(this.cfg.signupTab);
+    this.headers = new Map([[this.cfg.signupTab, main.header]]);
+    const old = this.cfg.signupTab === this.cfg.defaultTab ? (this.cfg.oldTabs || []) : [];
+    if (!old.length) return main;
+
+    const canon = [this.cfg.colName, this.cfg.colDiscord, this.cfg.colVerifiedId, this.cfg.colChecked,
+      ...String(this.cfg.colEvent || "").split("|")].map((c) => String(c || "").trim()).filter(Boolean);
+    const rename = (h) => canon.find((c) => c.toLowerCase() === h.toLowerCase()) || h;
+    const header = main.header.slice();
+    const rows = main.rows.slice();
+    for (const tab of old) {
+      let t;
+      try {
+        t = await this.readTab(tab);
+      } catch (err) {
+        if (/Unable to parse range/i.test(String(err.message))) continue;   // renamed or deleted
+        throw err;
+      }
+      this.headers.set(tab, t.header);
+      for (const r of t.rows) {
+        const o = { _line: `${tab}!${r._line}`, _old: true };
+        t.header.forEach((h) => { o[rename(h)] = r[h]; });
+        rows.push(o);
+      }
+      t.header.map(rename).forEach((h) => { if (!header.includes(h)) header.push(h); });
+    }
+    return { header, rows };
+  }
+
+  /** Copy a signup from an old form's tab onto the current tab, under the current
+      tab's own columns, so its check-in lands there with everyone else's. Returns the
+      new row's number. Call after readSignups. */
+  async portRow(row) {
+    const tab = this.cfg.signupTab;
+    const header = this.headers?.get(tab) || [];
+    if (!header.length) throw new Error(`the ${tab} tab has no header row`);
+    const values = header.map((h) => String(row[h] ?? ""));
+    // The old form asked for the event under another question; carry the answer over
+    // so the copy still counts for the same date.
+    const eventCols = String(this.cfg.colEvent || "").split("|").map((c) => c.trim()).filter(Boolean);
+    const answer = eventCols.map((c) => String(row[c] ?? "").trim()).find(Boolean) || "";
+    header.forEach((h, i) => { if (eventCols.includes(h) && !values[i].trim()) values[i] = answer; });
+    const res = await this.call(
+      `/values/${encodeURIComponent(`${q(tab)}!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { method: "POST", body: JSON.stringify({ values: [values] }) }
+    );
+    const m = /![A-Z]+(\d+)/.exec(String(res.updates?.updatedRange || ""));
+    if (!m) throw new Error(`could not tell where the copied signup landed on ${tab}`);
+    return Number(m[1]);
+  }
+
+  async ensureColumn(header, name, tab = this.cfg.signupTab) {
     const i = header.indexOf(name);
     if (i >= 0) return i;
     const col = header.length;
     await this.call(
-      `/values/${encodeURIComponent(`${q(this.cfg.signupTab)}!${A1(col)}1`)}?valueInputOption=RAW`,
+      `/values/${encodeURIComponent(`${q(tab)}!${A1(col)}1`)}?valueInputOption=RAW`,
       { method: "PUT", body: JSON.stringify({ values: [[name]] }) }
     );
     header.push(name);
     return col;
   }
 
+  /** `line` is a row number on the signup tab, or "Tab!row" for an old form's tab.
+      Columns are found in that tab's own header, as read by readSignups. */
   async markRow(header, line, { checkedValue, discordId }) {
-    const cChecked = await this.ensureColumn(header, this.cfg.colChecked);
-    const data = [{ range: `${q(this.cfg.signupTab)}!${A1(cChecked)}${line}`, values: [[checkedValue]] }];
+    let tab = this.cfg.signupTab;
+    const s = String(line), bang = s.lastIndexOf("!");
+    if (bang > 0) { tab = s.slice(0, bang); line = Number(s.slice(bang + 1)); }
+    header = this.headers?.get(tab) || header;
+    const cChecked = await this.ensureColumn(header, this.cfg.colChecked, tab);
+    const data = [{ range: `${q(tab)}!${A1(cChecked)}${line}`, values: [[checkedValue]] }];
     // An organizer check-in by name alone has no ID. Writing "" would erase one
     // that an earlier event already verified.
     if (discordId) {
-      const cId = await this.ensureColumn(header, this.cfg.colVerifiedId);
-      data.push({ range: `${q(this.cfg.signupTab)}!${A1(cId)}${line}`, values: [[discordId]] });
+      const cId = await this.ensureColumn(header, this.cfg.colVerifiedId, tab);
+      data.push({ range: `${q(tab)}!${A1(cId)}${line}`, values: [[discordId]] });
     }
     await this.call("/values:batchUpdate", {
       method: "POST",
