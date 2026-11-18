@@ -15,8 +15,9 @@ export const BALANCES_TAB = "Nexus Balances";
 
 /* Each player's current total, worked out by the sheet from the ledger. The same
    formula the matchmaking script uses; whichever runs first makes the tab. */
-const BALANCES_FORMULA = "=QUERY('Nexus Ledger'!A2:C, \"select B, sum(C), count(C) where B is not null and B <> '' " +
-  "group by B order by sum(C) desc label B 'Player', sum(C) 'Points', count(C) 'Entries'\", 0)";
+const BALANCES_FORMULA = "=QUERY({ARRAYFORMULA(TRIM('Nexus Ledger'!B2:B)), ARRAYFORMULA(IFERROR(VALUE('Nexus Ledger'!C2:C), 0))}, " +
+  "\"select Col1, sum(Col2), count(Col2) where Col1 <> '' group by Col1 order by sum(Col2) desc " +
+  "label Col1 'Player', sum(Col2) 'Points', count(Col2) 'Entries'\", 0)";
 
 /** Make the Nexus Balances tab if it is missing. Never fails a redemption over it. */
 export async function ensureBalances(mmr) {

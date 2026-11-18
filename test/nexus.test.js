@@ -127,7 +127,7 @@ test("redeeming asks first, then writes one negative ledger row, and only once",
   assert.match(done.embeds[0].description, /Redeemed \*\*Pack\*\* for 5 Nexus Points[\s\S]*0 Nexus Points\*\* left/);
   const row = mmr.appended[0];
   assert.deepEqual(row.slice(1), ["test", -5, "Redeemed: Pack", "Nexus Shop #msg1", brian.id]);
-  assert.match(mmr.formulas["'Nexus Balances'!A1"], /^=QUERY\('Nexus Ledger'!A2:C/, "the Balances tab is made");
+  assert.match(mmr.formulas["'Nexus Balances'!A1"], /^=QUERY\(\{ARRAYFORMULA\(TRIM\('Nexus Ledger'!B2:B\)\)/, "the Balances tab is made");
 
   assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg1"), /Already redeemed/);
   assert.match(await shopRedeem(noSignups, mmr, cfg, brian, "rb:ok:Pack", "msg2"), /you have 0 Nexus Points\. You need 5 Nexus Points more\. Nothing was spent/);
