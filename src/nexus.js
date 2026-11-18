@@ -25,6 +25,8 @@ export async function ensureBalances(mmr) {
     if ((await mmr.listTabs()).includes(BALANCES_TAB)) return;
     await mmr.ensureTab(BALANCES_TAB);
     await mmr.putFormula(`'${BALANCES_TAB}'!A1`, BALANCES_FORMULA);
+    // Where officers type hand edits; the matchmaking script's onEdit logs them.
+    await mmr.putValues(`'${BALANCES_TAB}'!D1:E1`, [["Set points to", "Add or remove"]]);
   } catch (err) {
     console.error("could not make the Nexus Balances tab", err);
   }
